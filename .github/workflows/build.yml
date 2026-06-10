@@ -1,0 +1,85 @@
+name: Build Gestiq
+
+on:
+  push:
+    tags: ["v*"]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Descargar Chromium embebido
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: "0"
+        run: playwright install chromium
+
+      - name: Compilar exe
+        run: pyinstaller --clean -y gestiq_win.spec
+
+      - name: Comprimir
+        run: Compress-Archive -Path "dist/Gestiq.exe" -DestinationPath "Gestiq-Windows.zip"
+
+      - name: Subir artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gestiq-Windows
+          path: Gestiq-Windows.zip
+
+      - name: Publicar en Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Gestiq-Windows.zip
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Descargar Chromium embebido
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: "0"
+        run: playwright install chromium
+
+      - name: Compilar app
+        run: pyinstaller --clean -y gestiq_mac.spec
+
+      - name: Comprimir
+        run: |
+          mkdir paquete
+          cp -R "dist/Gestiq.app" NOTA_MAC.txt paquete/
+          ditto -c -k paquete Gestiq-Mac.zip
+
+      - name: Subir artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gestiq-Mac
+          path: Gestiq-Mac.zip
+
+      - name: Publicar en Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Gestiq-Mac.zip
