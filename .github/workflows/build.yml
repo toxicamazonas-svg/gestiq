@@ -23,16 +23,16 @@ jobs:
       - name: Instalar dependencias
         run: pip install -r requirements.txt pyinstaller
 
-      - name: Descargar Chromium embebido
-        env:
-          PLAYWRIGHT_BROWSERS_PATH: "0"
+      - name: Descargar Chromium
         run: playwright install chromium
 
       - name: Compilar exe
         run: pyinstaller --clean -y gestiq_win.spec
 
-      - name: Comprimir
-        run: Compress-Archive -Path "dist/Gestiq.exe" -DestinationPath "Gestiq-Windows.zip"
+      - name: Empaquetar navegador y comprimir
+        run: |
+          Copy-Item -Recurse "$env:LOCALAPPDATA\ms-playwright" "dist/ms-playwright"
+          Compress-Archive -Path "dist/Gestiq.exe","dist/ms-playwright" -DestinationPath "Gestiq-Windows.zip"
 
       - name: Subir artefacto
         uses: actions/upload-artifact@v4
@@ -58,16 +58,16 @@ jobs:
       - name: Instalar dependencias
         run: pip install -r requirements.txt pyinstaller
 
-      - name: Descargar Chromium embebido
-        env:
-          PLAYWRIGHT_BROWSERS_PATH: "0"
+      - name: Descargar Chromium
         run: playwright install chromium
 
       - name: Compilar app
         run: pyinstaller --clean -y gestiq_mac.spec
 
-      - name: Comprimir
+      - name: Empaquetar navegador y comprimir
         run: |
+          ditto "$HOME/Library/Caches/ms-playwright" "dist/Gestiq.app/Contents/Resources/ms-playwright"
+          codesign --force --deep -s - "dist/Gestiq.app"
           mkdir paquete
           cp -R "dist/Gestiq.app" NOTA_MAC.txt paquete/
           ditto -c -k paquete Gestiq-Mac.zip
