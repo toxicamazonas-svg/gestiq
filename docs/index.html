@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestiq — Descargas</title>
+<style>
+  :root {
+    --bg: #0f1420;
+    --card: #1a2232;
+    --accent: #4f8ef7;
+    --accent2: #3ddc97;
+    --text: #e8ecf4;
+    --muted: #93a0b8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; padding: 24px;
+  }
+  .logo {
+    width: 72px; height: 72px; border-radius: 18px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 34px; font-weight: 800; color: #fff; margin-bottom: 20px;
+  }
+  h1 { font-size: 2rem; margin-bottom: 8px; text-align: center; }
+  .sub { color: var(--muted); margin-bottom: 6px; text-align: center; max-width: 480px; }
+  .version { color: var(--accent2); font-size: .9rem; margin-bottom: 32px; min-height: 1.2em; }
+  .cards { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+  .card {
+    background: var(--card); border-radius: 16px; padding: 28px;
+    width: 290px; text-align: center; border: 1px solid #2a3550;
+  }
+  .card.destacada { border-color: var(--accent); box-shadow: 0 0 24px rgba(79,142,247,.25); }
+  .os-icon { font-size: 42px; margin-bottom: 10px; }
+  .card h2 { font-size: 1.15rem; margin-bottom: 6px; }
+  .card p { color: var(--muted); font-size: .85rem; margin-bottom: 18px; }
+  .btn {
+    display: inline-block; padding: 12px 26px; border-radius: 10px;
+    background: var(--accent); color: #fff; text-decoration: none;
+    font-weight: 600; transition: opacity .15s;
+  }
+  .btn:hover { opacity: .85; }
+  .btn.sec { background: #2a3550; }
+  .recomendado {
+    display: inline-block; background: var(--accent2); color: #0f1420;
+    font-size: .7rem; font-weight: 700; padding: 3px 10px;
+    border-radius: 99px; margin-bottom: 12px; visibility: hidden;
+  }
+  .card.destacada .recomendado { visibility: visible; }
+  .nota {
+    margin-top: 36px; color: var(--muted); font-size: .8rem;
+    max-width: 520px; text-align: center; line-height: 1.5;
+  }
+  footer { margin-top: 28px; color: #5a6680; font-size: .75rem; }
+</style>
+</head>
+<body>
+  <div class="logo">G</div>
+  <h1>Gestiq</h1>
+  <p class="sub">Automatización IMAGINE (ARL Bolívar) y GUARDIAN. Descarga, doble clic y listo: no necesitas instalar nada.</p>
+  <p class="version" id="version"></p>
+
+  <div class="cards">
+    <div class="card" id="card-win">
+      <span class="recomendado">RECOMENDADO PARA TI</span>
+      <div class="os-icon">🪟</div>
+      <h2>Windows</h2>
+      <p>Windows 10/11 · 64 bits</p>
+      <a class="btn" id="btn-win" href="#">Descargar para Windows</a>
+    </div>
+    <div class="card" id="card-mac">
+      <span class="recomendado">RECOMENDADO PARA TI</span>
+      <div class="os-icon">🍎</div>
+      <h2>Mac</h2>
+      <p>macOS 11+ · Apple Silicon</p>
+      <a class="btn" id="btn-mac" href="#">Descargar para Mac</a>
+    </div>
+  </div>
+
+  <p class="nota">
+    <b>Windows:</b> si SmartScreen muestra un aviso, haz clic en "Más información" → "Ejecutar de todas formas".<br>
+    <b>Mac:</b> la primera vez, clic derecho sobre la app → Abrir. El zip incluye una nota con los detalles.
+  </p>
+
+  <footer>Gestiq · Distribución oficial</footer>
+
+<script>
+  // ── CONFIGURAR: usuario/repositorio de GitHub ──
+  const REPO = "toxicamazonas-svg/gestiq";
+  // ───────────────────────────────────────────────
+
+  const base = `https://github.com/${REPO}/releases/latest/download/`;
+  document.getElementById("btn-win").href = base + "Gestiq-Windows.zip";
+  document.getElementById("btn-mac").href = base + "Gestiq-Mac.zip";
+
+  // Detectar sistema operativo y destacar la tarjeta correcta
+  const esMac = /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent);
+  document.getElementById(esMac ? "card-mac" : "card-win").classList.add("destacada");
+  if (esMac) document.getElementById("btn-win").classList.add("sec");
+  else document.getElementById("btn-mac").classList.add("sec");
+
+  // Mostrar número de versión publicada
+  fetch(`https://api.github.com/repos/${REPO}/releases/latest`)
+    .then(r => r.ok ? r.json() : null)
+    .then(d => { if (d && d.tag_name) document.getElementById("version").textContent = "Última versión: " + d.tag_name; })
+    .catch(() => {});
+</script>
+</body>
+</html>

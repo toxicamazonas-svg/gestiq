@@ -1,0 +1,12 @@
+Gestiq - Nota para Mac
+============================
+
+Si al abrir la app macOS dice que no se puede abrir porque
+"no se puede verificar el desarrollador" (Gatekeeper):
+
+Opcion 1: clic derecho sobre "Gestiq.app" -> Abrir -> Abrir.
+Opcion 2: abrir Terminal y ejecutar:
+    xattr -cr "Gestiq.app"
+y volver a abrir la app con doble clic.
+
+Esto solo es necesario la primera vez.
