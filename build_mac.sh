@@ -11,16 +11,18 @@ echo "[2/5] Instalando dependencias..."
 pip install --upgrade pip
 pip install -r requirements.txt pyinstaller
 
-echo "[3/5] Descargando Chromium (quedara dentro del .app)..."
-export PLAYWRIGHT_BROWSERS_PATH=0
+echo "[3/5] Descargando Chromium..."
 playwright install chromium
 
 echo "[4/5] Compilando..."
 pyinstaller --clean -y gestiq_mac.spec
+ditto "$HOME/Library/Caches/ms-playwright" "dist/Gestiq.app/Contents/Resources/ms-playwright"
+codesign --force --deep -s - "dist/Gestiq.app"
 
 echo "[5/5] Comprimiendo..."
-cp NOTA_MAC.txt dist/ 2>/dev/null || true
-cd dist && ditto -c -k --keepParent "Gestiq.app" "Gestiq-Mac.zip" && cd ..
+mkdir -p dist/paquete
+cp -R "dist/Gestiq.app" NOTA_MAC.txt dist/paquete/
+ditto -c -k dist/paquete "dist/Gestiq-Mac.zip"
 
 echo ""
 echo "LISTO: dist/Gestiq.app  y  dist/Gestiq-Mac.zip"

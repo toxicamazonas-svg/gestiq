@@ -10,13 +10,13 @@ echo [2/4] Instalando dependencias...
 pip install --upgrade pip
 pip install -r requirements.txt pyinstaller
 
-echo [3/4] Descargando Chromium (quedara dentro del .exe)...
-set PLAYWRIGHT_BROWSERS_PATH=0
+echo [3/4] Descargando Chromium...
 playwright install chromium
 
 echo [4/4] Compilando...
 pyinstaller --clean -y gestiq_win.spec
+xcopy "%LOCALAPPDATA%\ms-playwright" "dist\ms-playwright\" /E /I /Y /Q
 
 echo.
-echo LISTO: dist\Gestiq.exe
+echo LISTO: carpeta dist\ (Gestiq.exe + ms-playwright deben ir siempre juntos)
 pause
