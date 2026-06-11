@@ -148,6 +148,17 @@
   .chip.plan    { background: var(--card); color: var(--text); border: 1px solid var(--border); }
   .link { background: none; border: none; color: var(--muted); font-size: .82rem;
           cursor: pointer; text-decoration: underline; margin-top: 16px; width: 100%; }
+  .cta.google {
+    background: var(--inner); box-shadow: none; color: var(--text);
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    border: 1px solid var(--border);
+  }
+  .cta.google:hover { background: #3A3A55; transform: none; }
+  .divisor {
+    display: flex; align-items: center; gap: 12px; margin-top: 16px;
+    color: var(--muted); font-size: .78rem;
+  }
+  .divisor::before, .divisor::after { content: ""; flex: 1; height: 1px; background: var(--border); }
   .nota-pago { text-align: center; color: var(--muted); font-size: .82rem; margin-top: 12px; }
 
   /* ── FAQ ── */
@@ -271,7 +282,25 @@
         <input id="pass2" type="password" placeholder="La misma contraseña">
       </div>
       <button class="cta" id="btnAuth" onclick="enviar()">Crear cuenta</button>
+      <div class="divisor"><span>o</span></div>
+      <button class="cta google" onclick="googleLogin()">
+        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.1 5.7l6.2 5.2C40.8 35.4 44 30.1 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
+        Entrar con Google
+      </button>
+      <button class="link" onclick="olvide()">¿Olvidaste tu contraseña?</button>
       <div class="msg" id="msgAuth"></div>
+    </div>
+
+    <!-- ════ Restablecer contraseña (al volver del correo) ════ -->
+    <div class="card" id="cardReset" style="display:none">
+      <p style="font-weight:700; margin-bottom:4px">Nueva contraseña</p>
+      <p class="correo">Escribe la nueva contraseña para tu cuenta.</p>
+      <label>Nueva contraseña</label>
+      <input id="npass" type="password" placeholder="Mínimo 6 caracteres">
+      <label>Repítela</label>
+      <input id="npass2" type="password" placeholder="La misma contraseña">
+      <button class="cta" id="btnReset" onclick="resetPass()">Guardar contraseña</button>
+      <div class="msg" id="msgReset"></div>
     </div>
 
     <!-- ════ Con sesión: estado ════ -->
@@ -520,7 +549,71 @@ function salir(rec) {
   if (rec !== false) location.reload(); else pintar();
 }
 
-pintar();
+/* ══ Google y recuperación de contraseña ══ */
+function googleLogin() {
+  location.href = SUPABASE_URL + "/auth/v1/authorize?provider=google&redirect_to="
+                + encodeURIComponent(location.origin + location.pathname);
+}
+
+async function olvide() {
+  const em = $("email").value.trim();
+  const M = $("msgAuth");
+  if (!em) { M.className = "msg err"; M.textContent = "Escribe tu correo arriba y vuelve a pulsar."; return; }
+  const { st } = await api("/auth/v1/recover", {
+    email: em,
+    gotrue_meta_security: {},
+  });
+  M.className = st === 200 ? "msg ok" : "msg err";
+  M.textContent = st === 200
+    ? "Te enviamos un correo con el enlace para restablecerla. Revisa también spam."
+    : "No se pudo enviar el correo. Verifica el correo escrito e intenta de nuevo.";
+}
+
+async function resetPass() {
+  const p1 = $("npass").value, p2 = $("npass2").value;
+  const M = $("msgReset"); M.className = "msg err"; M.textContent = "";
+  if (p1.length < 6) { M.textContent = "Mínimo 6 caracteres."; return; }
+  if (p1 !== p2)     { M.textContent = "Las contraseñas no coinciden."; return; }
+  $("btnReset").disabled = true;
+  const r = await fetch(SUPABASE_URL + "/auth/v1/user", {
+    method: "PUT",
+    headers: { "apikey": SUPABASE_KEY, "Content-Type": "application/json",
+               "Authorization": "Bearer " + ses.access },
+    body: JSON.stringify({ password: p1 })
+  });
+  $("btnReset").disabled = false;
+  if (r.status === 200) {
+    M.className = "msg ok"; M.textContent = "Contraseña guardada. Ya puedes usarla en la app.";
+    setTimeout(() => { $("cardReset").style.display = "none"; pintar(); }, 1500);
+  } else {
+    M.textContent = "No se pudo guardar. El enlace pudo haber vencido; pide uno nuevo.";
+  }
+}
+
+/* Tokens que llegan en la URL (Google o enlace de recuperación) */
+async function procesarHash() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  const at = h.get("access_token"), rt = h.get("refresh_token");
+  if (!at) return false;
+  const tipo = h.get("type");
+  history.replaceState(null, "", location.pathname + location.search);
+  const r = await fetch(SUPABASE_URL + "/auth/v1/user", {
+    headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + at }
+  });
+  const u = await r.json();
+  if (!u || !u.id) return false;
+  ses = { access: at, refresh: rt, email: u.email, uid: u.id };
+  localStorage.setItem("gestiq_ses", JSON.stringify(ses));
+  if (tipo === "recovery") {
+    $("cardAuth").style.display = "none"; $("cardCuenta").style.display = "none";
+    $("cardReset").style.display = "";
+    $("cardReset").scrollIntoView({ behavior: "smooth", block: "center" });
+    return true;
+  }
+  return false;
+}
+
+procesarHash().then(esReset => { if (!esReset) pintar(); });
 </script>
 </body>
 </html>
