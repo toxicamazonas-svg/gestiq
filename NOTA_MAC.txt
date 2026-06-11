@@ -1,12 +1,23 @@
 Gestiq - Nota para Mac
 ============================
 
-Si al abrir la app macOS dice que no se puede abrir porque
-"no se puede verificar el desarrollador" (Gatekeeper):
+macOS bloquea las apps descargadas de internet que no estan
+firmadas por Apple (Gatekeeper). A veces ni siquiera muestra
+un aviso: simplemente la app "no abre".
 
-Opcion 1: clic derecho sobre "Gestiq.app" -> Abrir -> Abrir.
-Opcion 2: abrir Terminal y ejecutar:
-    xattr -cr "Gestiq.app"
-y volver a abrir la app con doble clic.
+SOLUCION (solo la primera vez):
 
-Esto solo es necesario la primera vez.
+Abre Terminal (Aplicaciones > Utilidades > Terminal),
+pega esta linea y pulsa Enter:
+
+    xattr -cr ~/Downloads/Gestiq-Mac/Gestiq.app
+
+(si moviste la app a otra carpeta, arrastra "Gestiq.app" a la
+ventana de Terminal despues de escribir  xattr -cr  y un espacio)
+
+Luego abre la app con doble clic normalmente.
+
+Alternativa sin Terminal:
+1. Doble clic en la app (macOS la bloquea).
+2. Ajustes del Sistema > Privacidad y seguridad.
+3. Abajo aparece "Se bloqueo 'Gestiq'..." > boton "Abrir de todos modos".
