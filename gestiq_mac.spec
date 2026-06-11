@@ -3,11 +3,17 @@
 from PyInstaller.utils.hooks import collect_all
 
 datas, binaries, hiddenimports = [], [], []
-for pkg in ("playwright", "customtkinter"):
+for pkg in ("playwright", "customtkinter", "keyring"):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b
     hiddenimports += h
+hiddenimports += ["keyring.backends.macOS"]
+
+import os as _os
+for _logo in ("logo_imagine.png", "logo_guardian.png"):
+    if _os.path.exists(_logo):
+        datas.append((_logo, "."))
 
 a = Analysis(
     ["gestiq.py"],

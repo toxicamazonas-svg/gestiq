@@ -271,7 +271,9 @@ class App(ctk.CTk):
     # ── Licencias (Supabase) — todo se valida en el servidor ────────────────
     def _lic_iniciar(self):
         if licencia is None or not licencia.configurado():
-            self.title("Gestiq — MODO DESARROLLO (licencia sin configurar)")
+            self._lock_mostrar("bloqueado",
+                               "Error interno de licencias. Reinstala la aplicación "
+                               "o contacta soporte.")
             return
         self._lock_mostrar("cargando")
         def work():
@@ -348,7 +350,10 @@ class App(ctk.CTk):
     def lic_check_run(self):
         """Validación obligatoria antes de cada ejecución del bot."""
         if licencia is None or not licencia.configurado():
-            return True                              # modo desarrollo
+            self._lock_mostrar("bloqueado",
+                               "Error interno de licencias. Reinstala la aplicación "
+                               "o contacta soporte.")
+            return False
         if self._lic is None:
             self._lock_mostrar("login"); return False
         try:

@@ -10,10 +10,8 @@ Diseño:
   estado, fecha de vencimiento (hora del servidor, no del PC) y machine_id.
 - Sin internet o sin respuesta del servidor = sin acceso. No hay modo offline.
 
-Para activar el sistema: crear el proyecto en supabase.com, ejecutar
-supabase_setup.sql y pegar abajo la URL y la anon key del proyecto
-(Settings → API). Mientras tengan el texto PEGAR_*, la app corre en
-MODO DESARROLLO (sin login) — quitar esto antes de distribuir.
+Proyecto Supabase ya configurado abajo (URL + anon key). Sin licencia
+válida la app queda bloqueada — no existe modo desarrollo.
 """
 
 import sys, os, re, json, uuid, base64, hashlib, platform, subprocess, ssl
