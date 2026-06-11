@@ -153,12 +153,12 @@ class App(ctk.CTk):
         self.geometry("1020x720")
         self.minsize(900, 650)
         self.configure(fg_color=BG)
-        self._build()
-        self.protocol("WM_DELETE_WINDOW", self._on_close)
         self._lic = None            # sesión de licencia activa
         self._lock = None           # overlay de login/bloqueo
         self._hb = None             # heartbeat de licencia
         self._plan = "completo"     # imagine | guardian | completo
+        self._build()               # (_build usa _plan: debe ir después)
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.after(80, self._lic_iniciar)
         if not HAVE_PW:
             messagebox.showwarning(
