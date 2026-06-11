@@ -7,7 +7,7 @@ Requiere: pip install playwright openpyxl customtkinter
           playwright install chromium
 """
 
-import sys, os, re, json, base64, threading, asyncio
+import sys, os, re, json, base64, threading, asyncio, webbrowser
 from datetime import datetime
 from urllib.parse import unquote
 import tkinter as tk
@@ -38,20 +38,55 @@ def _init_fonts():
         fams = set(tkfont.families())
     except Exception:
         fams = set()
-    prefer = (("SF Pro Text", "SF Pro Display", "Helvetica Neue")
+    # En Mac, SF Pro reporta mal las métricas en Tk y corta los trazos de g/q/y;
+    # Helvetica Neue se ve casi igual y no recorta.
+    prefer = (("Helvetica Neue", "SF Pro Text", "SF Pro Display")
               if sys.platform == "darwin" else ("Segoe UI", "Calibri"))
     FONT_FAM = next((f for f in prefer if f in fams), prefer[-1])
 
 def F(size, bold=False):
     """Fuente consistente en toda la app."""
+    # Tk 9 en Mac recorta los trazos de g/q/y/p con tamaño 11: mínimo 12.
+    if sys.platform == "darwin" and size < 12:
+        size = 12
     return ctk.CTkFont(family=FONT_FAM, size=size,
                        weight="bold" if bold else "normal")
+
+# ── Logos de módulos (PNG junto al script o dentro del ejecutable) ───────────
+def _res_path(name):
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, name)
+
+def _load_logo(name, size=22):
+    """CTkImage desde PNG; None si falta el archivo o Pillow."""
+    try:
+        from PIL import Image
+        img = Image.open(_res_path(name))
+        # misma altura visual para todos y lienzo de ancho fijo, centrado
+        H = 128
+        w = max(1, round(img.width * H / img.height))
+        img = img.resize((w, H), Image.LANCZOS)
+        W = round(H * 1.2)
+        sq = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        sq.paste(img, (0, 0))                    # alineados al borde izquierdo
+        return ctk.CTkImage(light_image=sq, dark_image=sq,
+                            size=(round(size * 1.2), size))
+    except Exception:
+        return None
 
 try:
     from playwright.async_api import async_playwright, TimeoutError as PWTimeout
     HAVE_PW = True
 except ImportError:
     HAVE_PW = False
+
+try:
+    import licencia
+except Exception:
+    licencia = None
+
+# Web de registro y pago
+REGISTRO_URL = "https://toxicamazonas-svg.github.io/gestiq/cuenta.html"
 
 # ── Paleta sobria (tuplas CTK: primer valor = claro, segundo = oscuro) ───────
 # 4 colores base: fondo neutro, acento verde Bolívar, gris secundario, rojo errores
@@ -68,7 +103,7 @@ ERR      = "#E5484D"              # rojo, solo para errores
 ERR_H    = "#C53A3F"
 
 # Consola de registro (fondo oscuro fijo en ambos temas)
-LOG_BG, LOG_FG = "#14141F", "#A9B0C4"
+LOG_BG, LOG_FG = "#14141F", "#E2E6F0"
 OK_C = "#3DDC84"   # ✓ verde
 ER_C = "#FF6B6B"   # ✗ rojo
 WA_C = "#FFA94D"   # ⚠ naranja
@@ -107,6 +142,10 @@ class App(ctk.CTk):
         self.configure(fg_color=BG)
         self._build()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self._lic = None            # sesión de licencia activa
+        self._lock = None           # overlay de login/bloqueo
+        self._hb = None             # heartbeat de licencia
+        self.after(80, self._lic_iniciar)
         if not HAVE_PW:
             messagebox.showwarning(
                 "Falta un componente",
@@ -119,8 +158,17 @@ class App(ctk.CTk):
 
     def _toggle_theme(self):
         dark = bool(self.sw_theme.get())
-        ctk.set_appearance_mode("dark" if dark else "light")
-        self.sw_theme.configure(text="🌙  Oscuro" if dark else "☀️  Claro")
+        # CTk hace un volcado de pantalla por cada widget al cambiar el tema
+        # (update_idletasks en cada uno), y eso se ve como cambio progresivo.
+        # Se desactiva ese volcado durante el cambio y se hace uno solo al final.
+        orig = tk.Misc.update_idletasks
+        tk.Misc.update_idletasks = lambda *_: None
+        try:
+            ctk.set_appearance_mode("dark" if dark else "light")
+        finally:
+            tk.Misc.update_idletasks = orig
+        self.sw_theme.configure(text="Oscuro" if dark else "Claro")
+        self.update_idletasks()
 
     def _build(self):
         self.columnconfigure(1, weight=1)
@@ -141,16 +189,27 @@ class App(ctk.CTk):
         ctk.CTkLabel(hdr, text="Gestiq", font=F(19, True),
                      text_color=TX).pack(side="left")
 
-        badge = ctk.CTkFrame(hdr, fg_color=CARD2, corner_radius=8)
-        badge.pack(side="left", padx=10)
-        ctk.CTkLabel(badge, text=self.VERSION, font=F(11),
-                     text_color=TM).pack(padx=8, pady=2)
-
-        self.sw_theme = ctk.CTkSwitch(hdr, text="🌙  Oscuro", font=F(11),
+        theme_box = ctk.CTkFrame(hdr, fg_color=CARD2, corner_radius=10)
+        theme_box.pack(side="right", padx=20, pady=12)
+        ctk.CTkLabel(theme_box, text="Modo de visualización", font=F(11),
+                     text_color=TM).pack(side="left", padx=(12, 6))
+        self.sw_theme = ctk.CTkSwitch(theme_box, text="Oscuro", font=F(11),
                                       text_color=TM, progress_color=ACCENT,
                                       command=self._toggle_theme)
-        self.sw_theme.pack(side="right", padx=20)
+        self.sw_theme.pack(side="left", padx=(0, 10), pady=6)
         self.sw_theme.select()
+
+        # Panel de sesión (se muestra solo con sesión iniciada)
+        self.sess_box = ctk.CTkFrame(hdr, fg_color=CARD2, corner_radius=10)
+        self.lbl_sess = ctk.CTkLabel(self.sess_box, text="", font=F(11),
+                                     text_color=TM)
+        self.lbl_sess.pack(side="left", padx=(12, 8), pady=6)
+        ctk.CTkButton(self.sess_box, text="Cerrar sesión", font=F(11),
+                      width=106, height=28, fg_color="transparent",
+                      border_width=1, border_color=BORDER, text_color=TX,
+                      hover_color=CARD,
+                      command=self._lic_cerrar_sesion).pack(side="left",
+                                                            padx=(0, 10), pady=6)
 
         # ── Barra lateral ────────────────────────────────────────────────────
         side = ctk.CTkFrame(self, fg_color=CARD, corner_radius=0, width=190)
@@ -161,8 +220,12 @@ class App(ctk.CTk):
                      anchor="w").pack(fill="x", padx=20, pady=(20, 6))
 
         self._nav = {}
-        for key, txt in (("imagine", "🔍   IMAGINE"), ("guardian", "🛡   GUARDIAN")):
-            b = ctk.CTkButton(side, text=txt, anchor="w", height=40,
+        for key, emoji, label in (("imagine", "🔍", "IMAGINE"),
+                                  ("guardian", "🛡", "GUARDIÁN")):
+            logo = _load_logo(f"logo_{key}.png")
+            txt = f"  {label}" if logo else f"{emoji}   {label}"
+            b = ctk.CTkButton(side, text=txt, image=logo, compound="left",
+                              anchor="w", height=40,
                               corner_radius=10, font=F(13),
                               fg_color="transparent", hover_color=CARD2,
                               text_color=TM,
@@ -204,6 +267,202 @@ class App(ctk.CTk):
                     "¿Cerrar de todas formas?"):
                 return
         self.destroy()
+
+    # ── Licencias (Supabase) — todo se valida en el servidor ────────────────
+    def _lic_iniciar(self):
+        if licencia is None or not licencia.configurado():
+            self.title("Gestiq — MODO DESARROLLO (licencia sin configurar)")
+            return
+        self._lock_mostrar("cargando")
+        def work():
+            try:
+                s = licencia.restaurar_sesion()
+                if s is None:
+                    self.after(0, lambda: self._lock_mostrar("login")); return
+                r = licencia.verificar(s)
+                if r.get("ok"):
+                    self.after(0, lambda: self._lic_ok(s))
+                else:
+                    self.after(0, lambda m=licencia.motivo(r):
+                               self._lock_mostrar("bloqueado", m))
+            except Exception as e:
+                self.after(0, lambda m=str(e):
+                           self._lock_mostrar("bloqueado", m, reintentar=True))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _lic_ok(self, s):
+        self._lic = s
+        if self._lock is not None:
+            try: self._lock.destroy()
+            except Exception: pass
+            self._lock = None
+        if self._hb:
+            self.after_cancel(self._hb)
+        self._hb = self.after(600_000, self._lic_heartbeat)
+        self.title(f"Gestiq — {s.get('email', '')}")
+        self.lbl_sess.configure(text=f"👤 {s.get('email', '')}")
+        self.sess_box.pack(side="right", padx=(0, 8), pady=12)
+
+    def _lic_cerrar_sesion(self):
+        """Cierra la sesión (o permite cambiar de cuenta) desde el encabezado."""
+        if any(t._running for t in (self.imagine_tab, self.guardian_tab)):
+            if not messagebox.askyesno(
+                    "Cerrar sesión",
+                    "Hay una consulta en curso. Si cierras la sesión se "
+                    "detendrá.\n\n¿Cerrar sesión de todas formas?"):
+                return
+            for t in (self.imagine_tab, self.guardian_tab):
+                if t._running:
+                    t._do_stop()
+        if self._hb:
+            self.after_cancel(self._hb); self._hb = None
+        if licencia:
+            licencia.cerrar_sesion()
+        self._lic = None
+        self.title("Gestiq")
+        self._lock_mostrar("login")
+
+    def _lic_heartbeat(self):
+        """Revalida la licencia cada 10 min. Si falla, bloquea la app."""
+        if self._lic is None or licencia is None:
+            return
+        def work():
+            try:
+                r = licencia.verificar(self._lic)
+                if not r.get("ok"):
+                    self.after(0, lambda m=licencia.motivo(r): self._lic_bloquear(m))
+            except Exception as e:
+                self.after(0, lambda m=str(e): self._lic_bloquear(m, reintentar=True))
+        threading.Thread(target=work, daemon=True).start()
+        self._hb = self.after(600_000, self._lic_heartbeat)
+
+    def _lic_bloquear(self, msg, reintentar=False):
+        """Corta cualquier proceso en curso y muestra la pantalla de bloqueo."""
+        if self._hb:
+            self.after_cancel(self._hb); self._hb = None
+        for t in (self.imagine_tab, self.guardian_tab):
+            if t._running:
+                t._do_stop()
+        self._lock_mostrar("bloqueado", msg, reintentar=reintentar)
+
+    def lic_check_run(self):
+        """Validación obligatoria antes de cada ejecución del bot."""
+        if licencia is None or not licencia.configurado():
+            return True                              # modo desarrollo
+        if self._lic is None:
+            self._lock_mostrar("login"); return False
+        try:
+            r = licencia.verificar(self._lic)
+            if r.get("ok"):
+                return True
+            self._lic_bloquear(licencia.motivo(r))
+        except Exception as e:
+            self._lic_bloquear(str(e), reintentar=True)
+        return False
+
+    def _lock_mostrar(self, modo, msg="", reintentar=False):
+        """Overlay a pantalla completa: cargando / login / bloqueado."""
+        try: self.sess_box.pack_forget()
+        except Exception: pass
+        if self._lock is not None:
+            try: self._lock.destroy()
+            except Exception: pass
+        self._lic = None if modo != "cargando" else self._lic
+        self._lock = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
+        self._lock.place(relx=0, rely=0, relwidth=1, relheight=1)
+        self._lock.lift()
+
+        card = ctk.CTkFrame(self._lock, fg_color=CARD, corner_radius=16,
+                            border_width=1, border_color=BORDER)
+        card.place(relx=.5, rely=.45, anchor="center")
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(padx=44, pady=36)
+
+        ctk.CTkLabel(inner, text="🔒", font=F(34)).pack()
+
+        if modo == "cargando":
+            ctk.CTkLabel(inner, text="Verificando licencia…", font=F(17, True),
+                         text_color=TX).pack(pady=(10, 4))
+            ctk.CTkLabel(inner, text="Conectando con el servidor",
+                         font=F(12), text_color=TM).pack()
+
+        elif modo == "login":
+            ctk.CTkLabel(inner, text="Inicia sesión en Gestiq", font=F(17, True),
+                         text_color=TX).pack(pady=(10, 2))
+            ctk.CTkLabel(inner, text="Usa la cuenta que recibiste con tu suscripción",
+                         font=F(12), text_color=TM).pack(pady=(0, 14))
+            self._lock_email = ctk.CTkEntry(inner, width=290, height=40,
+                                            placeholder_text="Correo",
+                                            font=F(13), fg_color=CARD2,
+                                            border_color=BORDER, text_color=TX)
+            self._lock_email.pack(pady=4)
+            self._lock_email.insert(0, licencia.ultimo_email())
+            self._lock_pass = ctk.CTkEntry(inner, width=290, height=40,
+                                           placeholder_text="Contraseña", show="•",
+                                           font=F(13), fg_color=CARD2,
+                                           border_color=BORDER, text_color=TX)
+            self._lock_pass.pack(pady=4)
+            self._lock_pass.bind("<Return>", lambda *_: self._lic_login())
+            self._lock_btn = ctk.CTkButton(inner, text="Entrar", width=290, height=42,
+                                           font=F(14, True), fg_color=ACCENT,
+                                           hover_color=ACCENT_H,
+                                           command=self._lic_login)
+            self._lock_btn.pack(pady=(12, 4))
+            self._lock_status = ctk.CTkLabel(inner, text="", font=F(12),
+                                             text_color=ERR, wraplength=290)
+            self._lock_status.pack()
+            ctk.CTkButton(inner, text="¿No tienes cuenta? Regístrate y paga aquí",
+                          width=290, height=34, font=F(12),
+                          fg_color="transparent", hover_color=CARD2,
+                          text_color=ACCENT,
+                          command=lambda: webbrowser.open(REGISTRO_URL)
+                          ).pack(pady=(8, 0))
+            ctk.CTkLabel(inner, text="Se requiere conexión a internet",
+                         font=F(11), text_color=TM).pack(pady=(10, 0))
+
+        else:   # bloqueado
+            ctk.CTkLabel(inner, text="Acceso bloqueado", font=F(17, True),
+                         text_color=TX).pack(pady=(10, 6))
+            ctk.CTkLabel(inner, text=msg or "Licencia no válida.", font=F(13),
+                         text_color=TM, wraplength=320, justify="center").pack()
+            if reintentar:
+                ctk.CTkButton(inner, text="Reintentar", width=290, height=42,
+                              font=F(14, True), fg_color=ACCENT,
+                              hover_color=ACCENT_H,
+                              command=self._lic_iniciar).pack(pady=(16, 4))
+            ctk.CTkButton(inner, text="Cambiar de cuenta", width=290, height=38,
+                          font=F(13), fg_color=CARD2, hover_color=BORDER,
+                          text_color=TX,
+                          command=lambda: (licencia.cerrar_sesion(),
+                                           self._lock_mostrar("login"))
+                          ).pack(pady=(6 if not reintentar else 0, 0))
+
+    def _lic_login(self):
+        em = self._lock_email.get().strip()
+        pw = self._lock_pass.get()
+        if not em or not pw:
+            self._lock_status.configure(text="Escribe tu correo y contraseña."); return
+        self._lock_btn.configure(state="disabled", text="Verificando…")
+        self._lock_status.configure(text="")
+        def work():
+            try:
+                s = licencia.login(em, pw)
+                r = licencia.verificar(s)
+                if r.get("ok"):
+                    self.after(0, lambda: self._lic_ok(s))
+                else:
+                    licencia.cerrar_sesion()
+                    self.after(0, lambda m=licencia.motivo(r):
+                               self._lock_mostrar("bloqueado", m))
+            except Exception as e:
+                def ui(m=str(e)):
+                    try:
+                        self._lock_btn.configure(state="normal", text="Entrar")
+                        self._lock_status.configure(text=m)
+                    except Exception:
+                        pass
+                self.after(0, ui)
+        threading.Thread(target=work, daemon=True).start()
 
     def log(self, tab, msg, lvl="info"):
         """Escribe en el registro de la pestaña. Thread-safe."""
@@ -270,8 +529,17 @@ class BaseTab(ctk.CTkFrame):
         self.lbl_file.grid(row=0, column=1, sticky="ew", pady=(12, 0))
 
         self.lbl_file_info = ctk.CTkLabel(zone, text="Elige el Excel que contiene los casos",
-                                          font=F(11), text_color=TM, anchor="w")
+                                          font=F(11), text_color=TM, anchor="w",
+                                          justify="left")
         self.lbl_file_info.grid(row=1, column=1, sticky="ew", pady=(0, 12))
+
+        # ajustar el texto al ancho disponible en vez de cortarlo
+        # (se mide la zona completa: su ancho no depende del texto, evita bucles)
+        def _fit_labels(e):
+            avail = max(160, e.width - 230)   # icono + botón + márgenes
+            self.lbl_file.configure(wraplength=avail)
+            self.lbl_file_info.configure(wraplength=avail)
+        zone.bind("<Configure>", _fit_labels)
 
         self.btn_select = ctk.CTkButton(zone, text="Seleccionar…",
                                         command=self._pick_file,
@@ -364,6 +632,9 @@ class BaseTab(ctk.CTkFrame):
                                        progress_color=ACCENT, corner_radius=4)
         self.prog.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(6, 0))
         self.prog.set(0)
+        self._prog_val    = 0.0     # valor mostrado (animado)
+        self._prog_target = 0.0     # valor real al que se anima
+        self._prog_anim   = None
 
         ctk.CTkLabel(run, text="Registro de actividad", font=F(11, True),
                      text_color=TM, anchor="w").grid(
@@ -377,10 +648,10 @@ class BaseTab(ctk.CTkFrame):
         self.log_text = tk.Text(
             log_frame,
             bg=LOG_BG, fg=LOG_FG,
-            font=(MONO_FAM, 10 if sys.platform == "darwin" else 9),
+            font=(MONO_FAM, 13 if sys.platform == "darwin" else 11),
             relief="flat", bd=0, highlightthickness=0,
             state="disabled", wrap="word",
-            padx=12, pady=8,
+            padx=12, pady=8, spacing1=3,
             insertbackground=ACCENT,
             selectbackground="#33334D",
         )
@@ -441,7 +712,10 @@ class BaseTab(ctk.CTkFrame):
         sheets       = wb.sheetnames
         self.cb_sheet.configure(values=sheets)
         self.cb_sheet.set(sheets[0])
-        self.lbl_file.configure(text=os.path.basename(p), text_color=TX)
+        name = os.path.basename(p)
+        if len(name) > 55:                       # nombres muy largos: elipsis al medio
+            name = name[:30] + "…" + name[-22:]
+        self.lbl_file.configure(text=name, text_color=TX)
         self.lbl_file_info.configure(text=f"{len(sheets)} hoja(s) disponibles")
         self.btn_select.configure(text="Cambiar")
         self.app.log(self, f"Cargado: {os.path.basename(p)}  ({len(sheets)} hoja(s))", "ok")
@@ -460,6 +734,8 @@ class BaseTab(ctk.CTkFrame):
             messagebox.showerror("Falta un componente",
                                  "Playwright no está instalado en este equipo.")
             return
+        if not self.app.lic_check_run():
+            return
         try:
             self.wb = openpyxl.load_workbook(self.xl_path)
             sheets  = self.wb.sheetnames
@@ -477,6 +753,10 @@ class BaseTab(ctk.CTkFrame):
         self.btn_start.configure(state="disabled")
         self.btn_stop.configure(state="normal")
         self.btn_download.configure(state="disabled")
+        if self._prog_anim:
+            self.after_cancel(self._prog_anim)
+            self._prog_anim = None
+        self._prog_val = self._prog_target = 0.0
         self.prog.set(0)
         self.lbl_pct.configure(text="0 %")
         self.lbl_prog.configure(text="Iniciando…", text_color=TM)
@@ -549,15 +829,33 @@ class BaseTab(ctk.CTkFrame):
         else:
             self.lbl_prog.configure(text="Completado ✓ — revisa el registro y guarda una copia",
                                     text_color=ACCENT)
-            self.lbl_pct.configure(text="100 %")
-            self.prog.set(1)
+            self._set_prog(1)
 
     def _upd(self, cur, tot, msg=""):
         pct = cur / tot if tot else 0
-        self.prog.set(pct)
+        self._set_prog(pct)
         self.lbl_prog.configure(text=f"Procesando: {msg}  —  {cur} de {tot}",
                                 text_color=TM)
-        self.lbl_pct.configure(text=f"{int(pct * 100)} %")
+
+    def _set_prog(self, target):
+        """Anima la barra suavemente hacia el valor objetivo."""
+        self._prog_target = max(0.0, min(1.0, target))
+        if self._prog_anim is None:
+            self._animate_prog()
+
+    def _animate_prog(self):
+        try:
+            d = self._prog_target - self._prog_val
+            if abs(d) < 0.002:
+                self._prog_val  = self._prog_target
+                self._prog_anim = None
+            else:
+                self._prog_val += d * 0.12          # easing exponencial
+                self._prog_anim = self.after(16, self._animate_prog)
+            self.prog.set(self._prog_val)
+            self.lbl_pct.configure(text=f"{int(self._prog_val * 100)} %")
+        except tk.TclError:
+            self._prog_anim = None                  # ventana cerrada
 
     # ── Guardar Excel ────────────────────────────────────────────────────────
     def _save(self):
@@ -747,7 +1045,8 @@ class ImagineTab(BaseTab):
                 else:
                     style_cell(cell)
 
-                self.app.log(self, f"  {caso}: {result[:80]}", "ok")
+                self.app.log(self, f"  {caso}: {result[:80]}",
+                             "error" if "no encontrado" in rl else "ok")
 
             await browser.close()
 
@@ -888,7 +1187,7 @@ class GuardianTab(BaseTab):
             ov = str(ws.cell(row=row[0].row, column=out_c).value).strip().upper() \
                  if ws.cell(row=row[0].row, column=out_c).value else ""
             if cv and sv and cv.upper() not in ("NONE", "NAN", ""):
-                if not ov or ov == "PENDIENTE":
+                if not ov or "PENDIENTE" in ov:
                     jobs.append((row[0].row, cv, sv))
 
         total = len(jobs)
@@ -950,18 +1249,18 @@ class GuardianTab(BaseTab):
                 cell.value = result
                 ru = result.upper()
                 style_cell(cell)
-                if ru == "APROBADO":
-                    style_cell(cell, F_GREEN);              lvl = "ok"
-                elif ru == "RECHAZADO":
+                if "RECHAZADO" in ru:
                     style_cell(cell, F_RED, white=True);    lvl = "error"
-                elif ru == "PENDIENTE":
+                elif "PENDIENTE" in ru:
                     style_cell(cell, F_YELLOW);             lvl = "warn"
+                elif "APROBADO" in ru:
+                    style_cell(cell, F_GREEN);              lvl = "ok"
                 elif "NO NECESITA" in ru:
                     style_cell(cell, F_ORANGE);             lvl = "ok"
                 elif "NO ENCONTR" in ru or "ACTIVIDAD NO" in ru:
-                    no_resultado.append(f"{cron}/{sec}"); lvl = "orange"
+                    no_resultado.append(f"{cron}/{sec}"); lvl = "error"
                 else:
-                    lvl = "info"
+                    lvl = "orange"   # estado desconocido → visible, nunca gris
 
                 self.app.log(self, f"{cron}/{sec}: {result}", lvl)
 
@@ -1016,14 +1315,10 @@ class GuardianTab(BaseTab):
 
         # documento más reciente por fecha de carga
         rows.sort(key=lambda d: str(d.get("createdAt") or ""), reverse=True)
-        title = str(((rows[0].get("approvalStatus") or {}).get("title")) or "").upper()
-        if "APROBADO" in title and "PENDIENTE" not in title:
-            return "APROBADO"
-        if "RECHAZADO" in title:
-            return "RECHAZADO"
-        if "PENDIENTE" in title:
-            return "PENDIENTE"
-        return "NO NECESITA APROBACION"
+        title = str(((rows[0].get("approvalStatus") or {}).get("title")) or "").strip()
+        if not title:
+            return "NO NECESITA APROBACION"
+        return title.upper()  # texto tal cual lo devuelve Guardián, en mayúsculas
 
     # ── Lógica antigua por interfaz (ya no se usa; conservada por referencia) ─
     async def _procesar_fila(self, page, cronograma, secuencia):
