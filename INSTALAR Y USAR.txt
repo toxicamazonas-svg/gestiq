@@ -1,0 +1,104 @@
+════════════════════════════════════════════════════════════
+  IPRECON Bot — Instrucciones de instalación y uso
+════════════════════════════════════════════════════════════
+
+REQUISITOS
+──────────
+- Python 3.9 o superior  →  https://www.python.org/downloads/
+  (marcar la opción "Add Python to PATH" al instalar)
+
+INSTALACIÓN (solo la primera vez)
+──────────────────────────────────
+1. Abre una terminal (cmd o PowerShell en Windows)
+2. Navega a la carpeta donde está este archivo
+3. Ejecuta estos tres comandos uno por uno:
+
+     pip install playwright openpyxl
+     playwright install chromium
+
+   Si tienes error de permisos en Mac/Linux usa:
+     pip3 install playwright openpyxl
+
+CÓMO USAR EL PROGRAMA
+──────────────────────
+Ejecuta el programa con:
+   python iprecon_bot.py       (Windows)
+   python3 iprecon_bot.py      (Mac / Linux)
+
+O simplemente haz doble clic en iprecon_bot.py si Python
+está correctamente instalado.
+
+
+━━━━━━━━━━━━━━━━━━━━━━
+MÓDULO IMAGINE
+━━━━━━━━━━━━━━━━━━━━━━
+1. Selecciona tu Excel de seguimiento
+2. Elige la hoja del día que quieres procesar
+3. Verifica que "Col. CASO" apunte a la columna correcta
+   (por defecto busca una columna llamada "CASO")
+4. "Col. salida" es donde escribirá los resultados
+   (por defecto "IMAGINE" — la crea si no existe)
+5. Haz clic en "Iniciar"
+6. Se abre el navegador en la página de login de Imagine
+   → solo inicia sesión (NO hace falta navegar a ninguna página)
+   → haz clic en "Continuar" en la ventana del bot
+7. El bot abre cada caso directamente por URL y los procesa
+   todos automáticamente
+8. Al terminar, haz clic en "Descargar Excel"
+
+Lógica por caso:
+  - Si la empresa no es IPRECON      → escribe "CASO ERRADO"
+  - Si el caso no se encuentra       → escribe "CASO NO ENCONTRADO"
+  - Si alguna actividad es Pendiente → NO escribe nada (lo salta)
+  - Si todas las actividades Cerrado → abre Observaciones y copia
+    la observación más reciente (primera fila de la tabla)
+
+Colores en el Excel:
+  🟢 Verde   = Autorizado / Aprobado
+  🔴 Rojo    = Devuelto / Rechazado
+  🟠 Naranja = Caso errado / No encontrado
+
+
+━━━━━━━━━━━━━━━━━━━━━━
+MÓDULO GUARDIAN
+━━━━━━━━━━━━━━━━━━━━━━
+1. Selecciona tu Excel de seguimiento
+2. Elige la hoja
+3. Verifica "Col. CRONOGRAMA" y "Col. SEC" (Secuencia)
+4. "Col. salida" es donde escribirá los resultados
+   (por defecto "GUARDIAN")
+5. Haz clic en "Iniciar"
+6. Se abre el navegador → inicia sesión en Guardián de la
+   Productividad (Seguros Bolívar)
+   → navega a "Anexos aliados plan de trabajo anual"
+   → haz clic en "Continuar" en la ventana del bot
+7. El bot consulta cada par cronograma/secuencia
+8. Al terminar, descarga el Excel
+
+Lógica por fila:
+  - Ingresa cronograma + secuencia, clic en Consultar
+  - Si no hay resultado          → escribe "NO SE ENCONTRÓ RESULTADO"
+  - Si no hay documentos         → escribe "NO NECESITA APROBACION"
+  - Lee el estado del primer documento (el más reciente):
+      Aprobado                   → escribe "APROBADO"
+      Rechazado                  → escribe "RECHAZADO"
+      Pendiente aprobación       → escribe "PENDIENTE"
+      No necesita aprobación     → escribe "NO NECESITA APROBACION"
+
+Colores en el Excel:
+  🟢 Verde   = APROBADO
+  🔴 Rojo    = RECHAZADO
+  🟡 Amarillo = PENDIENTE
+  🟠 Naranja = NO NECESITA APROBACION
+
+
+NOTAS IMPORTANTES
+─────────────────
+- El bot NO guarda tus credenciales — tú inicias sesión manualmente
+- Si la sesión expira durante el proceso, el bot reportará el error
+  y continuará con el siguiente registro
+- Filas que ya tienen un valor (distinto de "PENDIENTE" o vacío)
+  son omitidas automáticamente — no se sobreescriben
+- El bot no modifica ningún dato en los sistemas web, solo lee
+
+════════════════════════════════════════════════════════════

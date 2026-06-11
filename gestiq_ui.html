@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Gestiq</title>
+<style>
+  :root {
+    --bg: #15151F; --card: rgba(28,28,42,.55); --card-op: #1C1C2A;
+    --inner: rgba(255,255,255,.05); --brd: rgba(255,255,255,.09);
+    --accent: #00B050; --accent2: #00C75B; --text: #EDEDF5; --muted: #9A9FB4;
+    --err: #E5484D; --warn: #FFA94D; --ok: #3DDC84; --naranja: #FF8A3D;
+    --log-bg: rgba(13,13,22,.75); --log-fg: #E2E6F0;
+    --spring: cubic-bezier(.32,1.25,.4,1); --suave: cubic-bezier(.22,1,.36,1);
+    --sombra: 0 0 0 rgba(0,0,0,0);   /* sin sombra en ningún modo */
+    --brillo: rgba(255,255,255,.07);
+  }
+  body.claro {
+    --bg: #F4F4F6; --card: rgba(255,255,255,.72); --card-op: #FFFFFF;
+    --inner: rgba(20,20,40,.05); --brd: rgba(20,20,40,.1);
+    --text: #1B1B2B; --muted: #6E7285; --log-bg: #14141F;
+    --sombra: 0 0 0 rgba(0,0,0,0);   /* sin sombra: el borde ya separa */
+    --brillo: rgba(255,255,255,.6);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; user-select:none; }
+  input, .sel { user-select:text; }
+  html,body { height:100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text); overflow:hidden;
+    -webkit-font-smoothing: antialiased;
+    opacity:0; transition: opacity .6s var(--suave);
+  }
+  body.lista { opacity:1; }
+  body::before {
+    content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+    background:
+      radial-gradient(760px 480px at 82% -12%, rgba(0,176,80,.16), transparent 62%),
+      radial-gradient(640px 420px at -10% 30%, rgba(0,199,91,.09), transparent 60%),
+      radial-gradient(800px 520px at 55% 115%, rgba(47,216,119,.08), transparent 62%);
+    transition: opacity .4s;
+  }
+  body.claro::before { opacity:.5; }
+
+  @keyframes sube { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:none; } }
+
+  .app { position:relative; z-index:1; height:100%; display:flex; flex-direction:column; padding:14px 16px 16px; gap:12px; }
+
+  /* ── Header píldora ── */
+  header {
+    display:flex; align-items:center; gap:10px; padding:8px 10px 8px 14px;
+    border-radius:99px; background:var(--card);
+    backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%);
+    border:1px solid var(--brd);
+    box-shadow:var(--sombra), inset 0 1px 0 var(--brillo);
+    animation: sube .6s var(--suave) backwards;
+  }
+  .logo {
+    width:34px; height:34px; border-radius:10px;
+    background: linear-gradient(145deg, var(--accent2), #009A46);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 4px 12px rgba(0,176,80,.35);
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-weight:800; font-size:16px;
+  }
+  .brand { font-weight:800; font-size:1.05rem; letter-spacing:.2px; }
+  .hspacer { margin-left:auto; }
+  .chip-sesion {
+    display:none; flex-direction:column; gap:9px; margin:auto 2px 2px;
+    padding:12px; border-radius:14px; text-align:left;
+    background:var(--inner); border:1px solid var(--brd);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+  }
+  .chip-sesion .correo {
+    display:flex; align-items:flex-start; gap:7px;
+    font-size:.72rem; color:var(--muted); line-height:1.4; word-break:break-all;
+  }
+  .chip-sesion button {
+    width:100%; border:none; cursor:pointer; font-size:.76rem; font-weight:700;
+    padding:8px 0; border-radius:99px; color:var(--text);
+    background:rgba(255,255,255,.07); border:1px solid var(--brd);
+    transition: background .3s, transform .35s var(--spring);
+  }
+  .chip-sesion button:hover { background:rgba(229,72,77,.25); transform:translateY(-1px); }
+  .btn-tema {
+    width:36px; height:36px; border-radius:99px; border:1px solid var(--brd);
+    background:var(--inner); cursor:pointer; font-size:15px;
+    display:flex; align-items:center; justify-content:center;
+    transition: transform .45s var(--spring), background .3s;
+  }
+  .btn-tema:hover { transform: rotate(40deg) scale(1.08); background:rgba(255,255,255,.1); }
+
+  /* ── Cuerpo ── */
+  .cuerpo { flex:1; display:flex; gap:12px; min-height:0; }
+
+  /* ── Sidebar ── */
+  nav {
+    width:196px; flex:none; display:flex; flex-direction:column;
+    background:var(--card); border:1px solid var(--brd); border-radius:20px;
+    backdrop-filter: blur(22px) saturate(150%); -webkit-backdrop-filter: blur(22px) saturate(150%);
+    box-shadow:var(--sombra), inset 0 1px 0 var(--brillo);
+    padding:16px 10px; animation: sube .6s var(--suave) .08s backwards;
+  }
+  nav h3 { font-size:.68rem; letter-spacing:.12em; color:var(--muted); margin:0 10px 10px; }
+  .navlist { position:relative; display:flex; flex-direction:column; gap:6px; }
+  .glider-nav {
+    position:absolute; left:0; width:100%; height:42px; border-radius:13px; z-index:0;
+    background: linear-gradient(180deg, var(--accent2), var(--accent));
+    box-shadow: 0 6px 18px rgba(0,176,80,.35), inset 0 1px 0 rgba(255,255,255,.25);
+    transition: transform .5s var(--spring); will-change: transform;
+  }
+  .navbtn {
+    position:relative; z-index:1; display:flex; align-items:center; gap:9px;
+    height:42px; padding:0 12px; border:none; background:transparent;
+    border-radius:13px; cursor:pointer; font-size:.86rem; font-weight:700;
+    color:var(--muted); transition: color .3s;
+  }
+  .navbtn.act { color:#fff; }
+  .navbtn:not(.act):hover { color:var(--text); }
+  .navbtn.off { opacity:.38; cursor:not-allowed; }
+  .navbtn .ic { font-size:16px; }
+  .navbtn img.nlogo {
+    height:20px; width:auto; max-width:28px; object-fit:contain;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,.35));
+  }
+  .navbtn { justify-content:flex-start; text-align:left; }
+
+  /* ── Panel principal ── */
+  main { flex:1; min-width:0; display:flex; flex-direction:column; gap:12px; overflow:auto; padding-right:2px; }
+  .modulo { display:none; flex-direction:column; gap:12px; min-height:100%; }
+  .modulo.act { display:flex; }
+  .tarjeta {
+    background:var(--card); border:1px solid var(--brd); border-radius:20px;
+    backdrop-filter: blur(22px) saturate(150%); -webkit-backdrop-filter: blur(22px) saturate(150%);
+    box-shadow:var(--sombra), inset 0 1px 0 var(--brillo);
+    padding:16px 20px; animation: sube .55s var(--suave) backwards;
+  }
+  .modulo .tarjeta:nth-child(1){animation-delay:.1s} .modulo .tarjeta:nth-child(2){animation-delay:.16s} .modulo .tarjeta:nth-child(3){animation-delay:.22s}
+  .tarjeta h2 { font-size:.86rem; font-weight:800; margin-bottom:11px; }
+  .tarjeta h2 small { color:var(--muted); font-weight:600; }
+
+  .zona-archivo {
+    display:flex; align-items:center; gap:13px; padding:13px 16px;
+    background:var(--inner); border:1px solid var(--brd); border-radius:14px;
+  }
+  .zona-archivo .ic { font-size:22px; }
+  .zona-archivo .tx { flex:1; min-width:0; }
+  .zona-archivo .nom { font-size:.86rem; font-weight:700; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .zona-archivo .nom.con { color:var(--text); }
+  .zona-archivo .det { font-size:.74rem; color:var(--muted); margin-top:2px; }
+  .ayuda { font-size:.74rem; color:var(--muted); margin-top:9px; line-height:1.5; }
+
+  .fila-cfg { display:flex; gap:14px; flex-wrap:wrap; }
+  .campo label { display:block; font-size:.72rem; color:var(--muted); margin-bottom:5px; }
+  .campo input, .campo select {
+    height:36px; padding:0 12px; border-radius:11px; font-size:.85rem;
+    background:var(--inner); color:var(--text); border:1px solid var(--brd); outline:none;
+    transition: border-color .25s, box-shadow .25s;
+  }
+  .campo input { width:140px; }
+  .campo select { width:180px; cursor:pointer; }
+  .campo select option { background:var(--card-op); color:var(--text); }
+  .campo input:focus, .campo select:focus { border-color:rgba(0,199,91,.6); box-shadow:0 0 0 4px rgba(0,176,80,.15); }
+
+  /* ── Botones ── */
+  .btn {
+    border:none; cursor:pointer; font-weight:800; color:#fff;
+    border-radius:99px; padding:0 22px; height:42px; font-size:.86rem;
+    background: linear-gradient(180deg, var(--accent2), var(--accent));
+    box-shadow:0 6px 18px rgba(0,176,80,.3), inset 0 1px 0 rgba(255,255,255,.28);
+    transition: transform .45s var(--spring), box-shadow .3s, filter .25s, opacity .25s;
+  }
+  .btn:hover:not(:disabled) { transform:translateY(-2px) scale(1.015); filter:brightness(1.06); box-shadow:0 10px 26px rgba(0,176,80,.42), inset 0 1px 0 rgba(255,255,255,.3); }
+  .btn:active:not(:disabled) { transform:scale(.96); }
+  .btn:disabled { opacity:.4; cursor:default; box-shadow:none; }
+  .btn.chico { height:36px; padding:0 18px; font-size:.8rem; }
+  .btn.rojo { background:linear-gradient(180deg,#F0595E,var(--err)); box-shadow:0 6px 18px rgba(229,72,77,.3), inset 0 1px 0 rgba(255,255,255,.25); }
+  .btn.rojo:hover:not(:disabled) { box-shadow:0 10px 26px rgba(229,72,77,.4), inset 0 1px 0 rgba(255,255,255,.28); }
+  .btn.gris { background:var(--inner); color:var(--text); border:1px solid var(--brd); box-shadow:inset 0 1px 0 rgba(255,255,255,.07); }
+  .btn.gris:hover:not(:disabled) { background:rgba(255,255,255,.12); filter:none; }
+  .btn.enlace { background:none; box-shadow:none; color:var(--muted); font-weight:600; text-decoration:underline; height:auto; padding:6px; }
+  .btn.enlace:hover { color:var(--text); transform:none; }
+
+  /* ── Ejecución ── */
+  .tarjeta.ejec { flex:1; display:flex; flex-direction:column; min-height:260px; }
+  .fila-btns { display:flex; gap:10px; }
+  .fila-btns .der { margin-left:auto; }
+  .progreso { margin-top:14px; }
+  .progreso .linea { display:flex; justify-content:space-between; font-size:.78rem; color:var(--muted); margin-bottom:6px; }
+  .progreso .linea b { color:var(--muted); font-weight:800; }
+  .barra { height:8px; border-radius:99px; background:var(--inner); border:1px solid var(--brd); overflow:hidden; }
+  .barra > div {
+    height:100%; width:0%; border-radius:99px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    box-shadow:0 0 12px rgba(0,199,91,.5);
+    transition: width .45s var(--suave);
+  }
+  .log-titulo { font-size:.72rem; font-weight:800; color:var(--muted); margin:13px 0 6px; }
+  .log {
+    flex:1; min-height:120px; overflow-y:auto; border-radius:13px;
+    background:var(--log-bg); border:1px solid var(--brd); padding:10px 13px;
+    font-family:"SF Mono", Menlo, Consolas, monospace; font-size:.76rem; line-height:1.65;
+    color:var(--log-fg); user-select:text;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  }
+  .log div { animation: sube .25s var(--suave); white-space:pre-wrap; word-break:break-word; }
+  .log .ok{color:var(--ok)} .log .error{color:#FF6B6B} .log .warn{color:var(--warn)} .log .orange{color:var(--naranja)}
+
+  /* ── Overlay licencia ── */
+  .velo {
+    position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center;
+    background: rgba(10,10,18,.5); backdrop-filter: blur(26px) saturate(140%); -webkit-backdrop-filter: blur(26px) saturate(140%);
+    opacity:1; transition: opacity .45s var(--suave);
+  }
+  .velo.oculto { opacity:0; pointer-events:none; }
+  .velo .caja {
+    width:368px; padding:34px 36px; border-radius:24px; text-align:center;
+    background:var(--card); border:1px solid var(--brd);
+    box-shadow:0 30px 80px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.09);
+    animation: sube .5s var(--spring);
+  }
+  .velo .icono { font-size:34px; }
+  .velo h1 { font-size:1.1rem; font-weight:800; margin:10px 0 4px; }
+  .velo p.sub { font-size:.8rem; color:var(--muted); margin-bottom:16px; }
+  .velo input {
+    width:100%; height:42px; margin:5px 0; padding:0 14px; border-radius:12px;
+    background:var(--inner); border:1px solid var(--brd); color:var(--text);
+    font-size:.88rem; outline:none; transition:border-color .25s, box-shadow .25s;
+  }
+  .velo input:focus { border-color:rgba(0,199,91,.6); box-shadow:0 0 0 4px rgba(0,176,80,.15); }
+  .velo .btn { width:100%; margin-top:10px; }
+  .velo .msg { min-height:1.1em; font-size:.78rem; color:var(--err); margin-top:9px; }
+  .velo .msg.neutro { color:var(--muted); }
+  .spinner {
+    width:26px; height:26px; margin:14px auto 0; border-radius:99px;
+    border:3px solid var(--inner); border-top-color:var(--accent2);
+    animation: girar .8s linear infinite;
+  }
+  @keyframes girar { to { transform: rotate(360deg); } }
+
+  /* ── Modal portal ── */
+  .modal {
+    position:fixed; inset:0; z-index:60; display:none; align-items:center; justify-content:center;
+    background:rgba(10,10,18,.45); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
+  .modal.vis { display:flex; }
+  .modal .caja {
+    width:430px; padding:28px 32px; border-radius:22px; text-align:center;
+    background:var(--card); border:1px solid var(--brd);
+    box-shadow:0 30px 80px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.09);
+    animation: sube .45s var(--spring);
+  }
+  .modal h1 { font-size:1rem; font-weight:800; margin:8px 0 10px; }
+  .modal ol { text-align:left; margin:0 0 16px 20px; font-size:.84rem; color:var(--muted); line-height:1.8; }
+  .modal .fila-btns { justify-content:center; }
+
+  /* ── Toasts ── */
+  #toasts { position:fixed; top:18px; right:18px; z-index:80; display:flex; flex-direction:column; gap:8px; }
+  .toast {
+    min-width:240px; max-width:340px; padding:12px 16px; border-radius:14px; font-size:.8rem;
+    background:var(--card); border:1px solid var(--brd); color:var(--text);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    box-shadow:0 14px 40px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.08);
+    animation: sube .4s var(--spring); border-left:3px solid var(--accent);
+  }
+  .toast.err { border-left-color:var(--err); }
+  .toast.warn { border-left-color:var(--warn); }
+  .toast b { display:block; margin-bottom:2px; font-size:.8rem; }
+
+  /* ── Perfil y preferencias ── */
+  .chip-sesion .perfil { display:flex; align-items:center; gap:9px; }
+  .avatar {
+    width:34px; height:34px; border-radius:99px; flex:none; overflow:hidden;
+    background: linear-gradient(145deg, var(--accent2), #009A46);
+    color:#fff; font-weight:800; font-size:14px;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 4px 12px rgba(0,176,80,.3);
+  }
+  .avatar img { width:100%; height:100%; object-fit:cover; border-radius:99px; }
+  .avatar.grande {
+    width:68px; height:68px; font-size:26px; margin:10px auto 6px; cursor:pointer;
+    transition: transform .4s var(--spring);
+  }
+  .avatar.grande:hover { transform: scale(1.07); }
+  .pdatos { min-width:0; text-align:left; }
+  .pnombre { font-size:.82rem; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:116px; }
+  .pestado { font-size:.66rem; color:var(--accent2); font-weight:700; margin-top:1px; }
+  .chip-botones { display:flex; gap:7px; }
+  .chip-botones .bprefs {
+    width:42px; flex:none; padding:0; font-size:19px; border-radius:99px; cursor:pointer;
+    background:rgba(255,255,255,.07); border:1px solid var(--brd); color:var(--text);
+    transition: transform .45s var(--spring), background .3s;
+  }
+  .chip-botones .bprefs:hover { transform: rotate(40deg) scale(1.1); background:rgba(255,255,255,.14); }
+  .chip-botones .bsalir { width:auto; flex:1; }
+  .modal .caja.izq { text-align:left; }
+  .psec { font-size:.66rem; letter-spacing:.12em; font-weight:800; color:var(--muted); margin:16px 0 8px; }
+  .plabel { display:block; font-size:.74rem; color:var(--muted); margin:8px 0 5px; }
+  .modal input {
+    width:100%; height:40px; padding:0 13px; border-radius:11px; font-size:.86rem;
+    background:var(--inner); border:1px solid var(--brd); color:var(--text); outline:none;
+    transition: border-color .25s, box-shadow .25s;
+  }
+  .modal input:focus { border-color:rgba(0,199,91,.6); box-shadow:0 0 0 4px rgba(0,176,80,.15); }
+  .pcuenta { font-size:.7rem; color:var(--muted); margin-top:7px; word-break:break-all; }
+  .pfila { display:flex; align-items:center; gap:14px; }
+  .pfila .avatar.grande { margin:0; }
+  .seg { display:flex; gap:6px; background:var(--inner); border:1px solid var(--brd); border-radius:99px; padding:4px; width:max-content; }
+  .seg button {
+    border:none; cursor:pointer; padding:7px 16px; border-radius:99px; font-size:.78rem; font-weight:700;
+    background:transparent; color:var(--muted); transition: all .3s;
+  }
+  .seg button.act {
+    background:linear-gradient(180deg,var(--accent2),var(--accent)); color:#fff;
+    box-shadow:0 4px 12px rgba(0,176,80,.35), inset 0 1px 0 rgba(255,255,255,.25);
+  }
+  .modal .msg { min-height:1em; font-size:.76rem; color:var(--err); margin-top:8px; text-align:center; }
+
+  ::-webkit-scrollbar { width:9px; height:9px; }
+  ::-webkit-scrollbar-thumb { background:rgba(255,255,255,.14); border-radius:99px; }
+  ::-webkit-scrollbar-thumb:hover { background:rgba(0,199,91,.5); }
+  ::-webkit-scrollbar-track { background:transparent; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <div class="logo">G</div>
+    <div class="brand">Gestiq</div>
+    <span style="font-size:.7rem;color:var(--muted);margin-top:3px">v2.3</span>
+    <div class="hspacer"></div>
+    <button class="btn-tema" id="btnTema" onclick="tema()" title="Cambiar tema">🌙</button>
+  </header>
+
+  <div class="cuerpo">
+    <nav>
+      <h3>MÓDULOS</h3>
+      <div class="navlist" id="navlist">
+        <div class="glider-nav" id="gliderNav"></div>
+        <button class="navbtn act" id="nav-imagine" onclick="modulo('imagine')"><img class="nlogo" src="logo_imagine.png" data-emoji="🔍" alt=""> IMAGINE</button>
+        <button class="navbtn" id="nav-guardian" onclick="modulo('guardian')"><img class="nlogo" src="logo_guardian.png" data-emoji="🛡️" alt=""> GUARDIÁN</button>
+      </div>
+      <div class="chip-sesion" id="chipSesion">
+        <div class="perfil">
+          <div class="avatar" id="avatarSesion">?</div>
+          <div class="pdatos">
+            <div class="pnombre" id="nombreSesion"></div>
+            <div class="pestado">●&nbsp; Sesión activa</div>
+          </div>
+        </div>
+        <span class="correo" id="correoSesion"></span>
+        <div class="chip-botones">
+          <button class="bprefs" onclick="abrirPrefs()" title="Preferencias">⚙</button>
+          <button class="bsalir" onclick="salir()">Cerrar sesión</button>
+        </div>
+      </div>
+    </nav>
+
+    <main id="main"></main>
+  </div>
+</div>
+
+<!-- Overlay licencia -->
+<div class="velo" id="velo">
+  <div class="caja" id="veloCaja"></div>
+</div>
+
+<!-- Modal login del portal -->
+<div class="modal" id="modalPortal">
+  <div class="caja">
+    <div style="font-size:30px">🌐</div>
+    <h1>Se abrió el navegador</h1>
+    <ol>
+      <li>Inicia sesión en <b id="portalNombre"></b></li>
+      <li>Cuando estés dentro, vuelve a esta ventana</li>
+      <li>Pulsa «Continuar»</li>
+    </ol>
+    <div class="fila-btns">
+      <button class="btn" onclick="portalOk()">▶&nbsp; Continuar</button>
+      <button class="btn gris" onclick="portalCancel()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal crear perfil (primer inicio de la cuenta) -->
+<div class="modal" id="modalPerfil">
+  <div class="caja">
+    <h1 id="perfilTitulo" style="font-size:1.15rem">¡Bienvenido! 👋</h1>
+    <p class="sub">Elige cómo quieres que te llamemos</p>
+    <div class="avatar grande" id="perfilAvatar" onclick="perfilFoto()" title="Elegir foto">?</div>
+    <button class="btn enlace" onclick="perfilFoto()">Elegir foto (opcional)</button>
+    <input id="perfilNombre" placeholder="Tu nombre de usuario" maxlength="24" style="margin-top:12px">
+    <button class="btn" id="perfilGuardar" style="width:100%;margin-top:14px" onclick="perfilGuardar()" disabled>Guardar y continuar</button>
+    <p class="sub" style="margin-top:12px;margin-bottom:0">Podrás cambiarlo luego en&nbsp; ⚙ Preferencias</p>
+  </div>
+</div>
+
+<!-- Modal preferencias -->
+<div class="modal" id="modalPrefs">
+  <div class="caja izq">
+    <h1>⚙&nbsp; Preferencias</h1>
+    <div class="psec">PERFIL</div>
+    <div class="pfila">
+      <div class="avatar grande" id="prefsAvatar" onclick="prefsFoto()" title="Cambiar foto">?</div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">
+        <button class="btn gris chico" onclick="prefsFoto()">Cambiar foto…</button>
+        <button class="btn enlace" style="padding:2px 6px" onclick="prefsQuitarFoto()">Quitar foto</button>
+      </div>
+    </div>
+    <label class="plabel">Nombre de usuario</label>
+    <input id="prefsNombre" maxlength="24">
+    <div class="pcuenta" id="prefsCuenta"></div>
+    <div class="psec">APARIENCIA</div>
+    <label class="plabel">Tema al iniciar la aplicación</label>
+    <div class="seg" id="segTema">
+      <button data-v="oscuro" onclick="segSel('segTema','oscuro')">🌙&nbsp; Oscuro</button>
+      <button data-v="claro" onclick="segSel('segTema','claro')">☀️&nbsp; Claro</button>
+    </div>
+    <div class="psec">INICIO</div>
+    <label class="plabel">Módulo al abrir sesión</label>
+    <div class="seg" id="segMod">
+      <button data-v="imagine" onclick="segSel('segMod','imagine')">🔍&nbsp; IMAGINE</button>
+      <button data-v="guardian" onclick="segSel('segMod','guardian')">🛡️&nbsp; GUARDIÁN</button>
+    </div>
+    <div class="fila-btns" style="margin-top:20px">
+      <button class="btn" style="flex:1" onclick="prefsGuardar()">Guardar cambios</button>
+      <button class="btn gris" onclick="cerrarPrefs()">Cancelar</button>
+    </div>
+    <div class="msg" id="prefsMsg"></div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+/* ════ Estado ════ */
+let MOD = "imagine", PLAN = "completo", PORTAL_MOD = null;
+let EMAIL = "", PERFIL = {}, FOTO_NUEVO = null, FOTO_EDIT = "keep";
+const esc = s => String(s).replace(/[&<>"']/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const saludoHora = () => { const h = new Date().getHours();
+  return h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches"; };
+const CFG = {
+  imagine:  { titulo:"IMAGINE", campos:[["caso","Columna de casos","CASO"],["out","Columna de resultado","IMAGINE"]],
+              ayuda:"El bot consulta cada caso en IMAGINE y escribe la última observación en la columna de resultado. Ajusta los nombres solo si tu Excel usa encabezados distintos." },
+  guardian: { titulo:"GUARDIÁN", campos:[["cron","Columna cronograma","CRONOGRAMA"],["sec","Columna secuencia","SECUENCIA"],["out","Columna de resultado","GUARDIAN"]],
+              ayuda:"El bot busca cada cronograma y secuencia en Guardián y escribe el estado (APROBADO, RECHAZADO, PENDIENTE…) en la columna de resultado." }
+};
+const $ = id => document.getElementById(id);
+
+/* ════ Construcción de los dos módulos ════ */
+function plantilla(m) {
+  const c = CFG[m];
+  const campos = c.campos.map(([k,lbl,def]) =>
+    `<div class="campo"><label>${lbl}</label><input id="${m}-${k}" value="${def}"></div>`).join("");
+  return `
+  <section class="modulo ${m==="imagine"?"act":""}" id="mod-${m}">
+    <div class="tarjeta">
+      <h2>1 · Archivo Excel</h2>
+      <div class="zona-archivo">
+        <span class="ic">📄</span>
+        <div class="tx">
+          <div class="nom" id="${m}-nombre">Ningún archivo seleccionado</div>
+          <div class="det" id="${m}-detalle">Elige el Excel que contiene los casos</div>
+        </div>
+        <button class="btn chico" id="${m}-btnsel" onclick="elegir('${m}')">Seleccionar…</button>
+      </div>
+      <div class="ayuda">Los resultados se escriben en este archivo; las celdas que ya tienen valor no se tocan.</div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>2 · Configuración</h2>
+      <div class="fila-cfg">
+        <div class="campo"><label>Hoja del Excel</label>
+          <select id="${m}-hoja"><option value="">—</option></select></div>
+        ${campos}
+      </div>
+      <div class="ayuda">ℹ ${c.ayuda}</div>
+    </div>
+
+    <div class="tarjeta ejec">
+      <h2>3 · Ejecución</h2>
+      <div class="fila-btns">
+        <button class="btn" id="${m}-iniciar" onclick="iniciar('${m}')">▶&nbsp;&nbsp; Iniciar consulta</button>
+        <button class="btn rojo" id="${m}-detener" onclick="detener('${m}')" disabled>⏹&nbsp; Detener búsqueda</button>
+        <button class="btn gris der" id="${m}-guardar" onclick="guardar('${m}')" disabled>⬇&nbsp; Guardar copia…</button>
+      </div>
+      <div class="progreso">
+        <div class="linea"><span id="${m}-estado">Listo para comenzar</span><b id="${m}-pct"></b></div>
+        <div class="barra"><div id="${m}-barra"></div></div>
+      </div>
+      <div class="log-titulo">REGISTRO DE ACTIVIDAD</div>
+      <div class="log" id="${m}-log"></div>
+    </div>
+  </section>`;
+}
+$("main").innerHTML = plantilla("imagine") + plantilla("guardian");
+
+/* Logos de módulo: si falta el PNG, vuelve al emoji */
+document.querySelectorAll("img.nlogo").forEach(img => {
+  img.addEventListener("error", () => {
+    const s = document.createElement("span");
+    s.className = "ic"; s.textContent = img.dataset.emoji || "▦";
+    img.replaceWith(s);
+  });
+});
+
+/* ════ Navegación con glider ════ */
+function modulo(m, forzar=false) {
+  if (!forzar && !planPermite(m)) { toast("warn","Módulo no incluido","Tu plan actual no incluye este módulo. Amplíalo en la página de tu cuenta."); return; }
+  MOD = m;
+  document.querySelectorAll(".navbtn").forEach(b => b.classList.toggle("act", b.id === "nav-"+m));
+  document.querySelectorAll(".modulo").forEach(s => s.classList.toggle("act", s.id === "mod-"+m));
+  const b = $("nav-"+m), g = $("gliderNav");
+  g.style.transform = `translateY(${b.offsetTop}px)`;
+  g.style.height = b.offsetHeight + "px";
+}
+function planPermite(m) {
+  return PLAN === "completo" || PLAN === m;
+}
+function aplicarPlan(p) {
+  PLAN = (p || "completo").toLowerCase();
+  if (!["imagine","guardian","completo"].includes(PLAN)) PLAN = "completo";
+  ["imagine","guardian"].forEach(m => $("nav-"+m).classList.toggle("off", !planPermite(m)));
+  if (!planPermite(MOD)) modulo(PLAN === "guardian" ? "guardian" : "imagine", true);
+}
+
+/* ════ Tema claro/oscuro ════ */
+function aplicarTema(t) {
+  const claro = t === "claro";
+  document.body.classList.toggle("claro", claro);
+  $("btnTema").textContent = claro ? "☀️" : "🌙";
+  localStorage.setItem("gestiq_tema", claro ? "claro" : "oscuro");
+}
+function tema() {
+  aplicarTema(document.body.classList.contains("claro") ? "oscuro" : "claro");
+}
+if (localStorage.getItem("gestiq_tema") === "claro") aplicarTema("claro");
+
+/* ════ Acciones → Python ════ */
+async function elegir(m) {
+  const r = await pywebview.api.elegir_archivo(m);
+  if (!r) return;
+  if (r.error) { toast("err","No se pudo abrir", r.error); return; }
+  $(m+"-nombre").textContent = r.nombre; $(m+"-nombre").classList.add("con");
+  $(m+"-detalle").textContent = r.hojas.length + " hoja(s) disponibles";
+  $(m+"-btnsel").textContent = "Cambiar";
+  $(m+"-hoja").innerHTML = r.hojas.map(h => `<option>${h}</option>`).join("");
+}
+async function iniciar(m) {
+  const cfg = { hoja: $(m+"-hoja").value };
+  CFG[m].campos.forEach(([k]) => cfg[k] = $(m+"-"+k).value.trim());
+  const r = await pywebview.api.iniciar(m, cfg);
+  if (r && r.error) { toast("err","No se pudo iniciar", r.error); return; }
+  setRunning(m, true);
+  $(m+"-estado").textContent = "Iniciando…";
+  $(m+"-pct").textContent = "0 %";
+  barra(m, 0);
+}
+async function detener(m) {
+  $(m+"-detener").disabled = true;
+  $(m+"-estado").textContent = "Deteniendo…";
+  await pywebview.api.detener(m);
+}
+async function guardar(m) {
+  const r = await pywebview.api.guardar_copia(m);
+  if (r && r.error) toast("err","No se pudo guardar", r.error);
+  else if (r && r.ruta) toast("ok","Guardado", "Archivo guardado en: " + r.ruta);
+}
+function setRunning(m, on) {
+  $(m+"-iniciar").disabled = on;
+  $(m+"-detener").disabled = !on;
+  $(m+"-guardar").disabled = on;
+  $(m+"-hoja").disabled = on;
+  CFG[m].campos.forEach(([k]) => $(m+"-"+k).disabled = on);
+  $(m+"-btnsel").disabled = on;
+}
+
+/* ════ Python → JS (objeto G) ════ */
+const PRE = { info:"·  ", ok:"✓  ", warn:"⚠  ", error:"✗  ", orange:"◆  " };
+window.G = {
+  log(m, ts, msg, lvl) {
+    const d = document.createElement("div");
+    d.className = lvl;
+    d.textContent = ts + "  " + (PRE[lvl] || "   ") + msg;
+    const log = $(m+"-log");
+    log.appendChild(d);
+    log.scrollTop = log.scrollHeight;
+    if (log.children.length > 900) log.removeChild(log.firstChild);
+  },
+  progreso(m, cur, tot, msg) {
+    $(m+"-estado").textContent = `Procesando: ${msg}  —  ${cur} de ${tot}`;
+    const pct = tot ? cur/tot : 0;
+    barra(m, pct);
+    $(m+"-pct").textContent = Math.round(pct*100) + " %";
+  },
+  barra(m, v) { barra(m, v); $(m+"-pct").textContent = Math.round(v*100) + " %"; },
+  estado(m, txt) { $(m+"-estado").textContent = txt; },
+  fin(m, detenido) {
+    setRunning(m, false);
+    $(m+"-guardar").disabled = false;
+    if (detenido) $(m+"-estado").textContent = "Detenido ⏹ — puedes guardar lo procesado hasta ahora";
+    else { $(m+"-estado").textContent = "Completado ✓ — revisa el registro y guarda una copia"; barra(m, 1); $(m+"-pct").textContent = "100 %"; }
+    cerrarPortal();
+  },
+  pedirLogin(m, sistema) {
+    PORTAL_MOD = m;
+    $(m+"-estado").textContent = "Esperando login manual…";
+    $("portalNombre").textContent = sistema;
+    $("modalPortal").classList.add("vis");
+  },
+  lic(e) { pintarLic(e); },
+  plan(p) { aplicarPlan(p); },
+  toast(tipo, titulo, msg) { toast(tipo, titulo, msg); }
+};
+function barra(m, v) { $(m+"-barra").style.width = (Math.max(0,Math.min(1,v))*100) + "%"; }
+function portalOk()     { $("modalPortal").classList.remove("vis"); if (PORTAL_MOD) { $(PORTAL_MOD+"-estado").textContent = "Procesando…"; pywebview.api.continuar_login(PORTAL_MOD); } }
+function portalCancel() { $("modalPortal").classList.remove("vis"); if (PORTAL_MOD) pywebview.api.cancelar_login(PORTAL_MOD); }
+function cerrarPortal() { $("modalPortal").classList.remove("vis"); }
+
+/* ════ Toasts ════ */
+function toast(tipo, titulo, msg) {
+  const t = document.createElement("div");
+  t.className = "toast " + (tipo === "error" ? "err" : tipo);
+  t.innerHTML = `<b>${titulo}</b>${msg}`;
+  $("toasts").appendChild(t);
+  setTimeout(() => { t.style.transition = "opacity .5s"; t.style.opacity = "0"; setTimeout(() => t.remove(), 500); }, 5200);
+}
+
+/* ════ Licencia (overlay) ════ */
+function pintarLic(e) {
+  const caja = $("veloCaja"), velo = $("velo");
+  if (e.modo === "ok") {
+    velo.classList.add("oculto");
+    EMAIL = e.email || "";
+    PERFIL = e.prefs || {};
+    if (PERFIL.tema) aplicarTema(PERFIL.tema);
+    pintarChip();
+    aplicarPlan(e.plan);
+    if (PERFIL.modulo && planPermite(PERFIL.modulo)) modulo(PERFIL.modulo, true);
+    if (!PERFIL.nombre) abrirPerfilInicial();
+    else toast("ok", saludoHora() + ", " + esc(PERFIL.nombre) + " 👋",
+               "Sesión iniciada correctamente.");
+    return;
+  }
+  velo.classList.remove("oculto");
+  $("chipSesion").style.display = "none";
+  if (e.modo === "cargando") {
+    caja.innerHTML = `<div class="icono">🔒</div><h1>Verificando licencia…</h1>
+      <p class="sub">Conectando con el servidor</p><div class="spinner"></div>`;
+  } else if (e.modo === "login") {
+    const p = e.prefs || {};
+    const icono = p.foto
+      ? `<div class="avatar grande" style="cursor:default"><img src="data:image/png;base64,${p.foto}"></div>`
+      : `<div class="logo" style="width:54px;height:54px;font-size:22px;border-radius:16px;margin:0 auto">G</div>`;
+    const titulo = p.nombre ? "Hola de nuevo, " + esc(p.nombre)
+                            : "Inicia sesión en Gestiq";
+    caja.innerHTML = `${icono}<h1>${titulo}</h1>
+      <p class="sub">Usa la cuenta que recibiste con tu suscripción</p>
+      <input id="licEmail" type="email" placeholder="Correo" value="${e.email || ""}">
+      <input id="licPass" type="password" placeholder="Contraseña">
+      <button class="btn" id="licEntrar" onclick="entrar()">Entrar</button>
+      <button class="btn gris" id="licGoogle" onclick="entrarGoogle()" style="width:100%;margin-top:8px">G&nbsp; Entrar con Google</button>
+      <div class="msg" id="licMsg"></div>
+      <button class="btn enlace" onclick="pywebview.api.abrir_web()">¿Olvidaste tu contraseña? Recupérala aquí</button>
+      <button class="btn enlace" style="color:var(--accent2)" onclick="pywebview.api.abrir_web()">¿No tienes cuenta? Regístrate y paga aquí</button>
+      <p class="sub" style="margin-top:10px">Se requiere conexión a internet</p>`;
+    $("licPass").addEventListener("keydown", ev => { if (ev.key === "Enter") entrar(); });
+  } else {
+    caja.innerHTML = `<div class="icono">🔒</div><h1>Acceso bloqueado</h1>
+      <p class="sub">${e.msg || "Licencia no válida."}</p>
+      ${e.reintentar ? '<button class="btn" onclick="reintentar()">Reintentar</button>' : ""}
+      <button class="btn gris" style="width:100%;margin-top:8px" onclick="cambiarCuenta()">Cambiar de cuenta</button>`;
+  }
+}
+async function entrar() {
+  const em = $("licEmail").value.trim(), pw = $("licPass").value;
+  const M = $("licMsg");
+  if (!em || !pw) { M.textContent = "Escribe tu correo y contraseña."; return; }
+  $("licEntrar").disabled = true; $("licEntrar").textContent = "Verificando…"; M.textContent = "";
+  const r = await pywebview.api.login(em, pw);
+  if (r.modo !== "ok") {
+    if (r.modo === "bloqueado") { pintarLic(r); return; }
+    $("licEntrar").disabled = false; $("licEntrar").textContent = "Entrar";
+    M.textContent = r.msg || "No se pudo iniciar sesión.";
+    return;
+  }
+  pintarLic(r);
+}
+async function entrarGoogle() {
+  const M = $("licMsg");
+  $("licGoogle").disabled = true; $("licGoogle").textContent = "Abriendo navegador…";
+  M.className = "msg neutro"; M.textContent = "Completa el acceso en tu navegador…";
+  const r = await pywebview.api.login_google();
+  if (r.modo !== "ok") {
+    if (r.modo === "bloqueado") { pintarLic(r); return; }
+    $("licGoogle").disabled = false; $("licGoogle").textContent = "G  Entrar con Google";
+    M.className = "msg"; M.textContent = r.msg || "No se pudo iniciar sesión.";
+    return;
+  }
+  pintarLic(r);
+}
+async function salir()         { pintarLic(await pywebview.api.salir()); }
+async function reintentar()    { pintarLic({modo:"cargando"}); pintarLic(await pywebview.api.estado_inicial()); }
+async function cambiarCuenta() { pintarLic(await pywebview.api.salir()); }
+
+/* ════ Perfil y preferencias ════ */
+function pintarAvatar(el, foto, nombre) {
+  if (foto) el.innerHTML = `<img src="data:image/png;base64,${foto}">`;
+  else el.textContent = ((nombre || EMAIL || "?").trim()[0] || "?").toUpperCase();
+}
+function pintarChip() {
+  $("chipSesion").style.display = "flex";
+  $("nombreSesion").textContent = PERFIL.nombre || EMAIL;
+  $("correoSesion").textContent = EMAIL;
+  pintarAvatar($("avatarSesion"), PERFIL.foto, PERFIL.nombre);
+}
+function recortar(b64, mime) {           // recorte circular 128px en canvas
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const s = 128, c = document.createElement("canvas");
+      c.width = c.height = s;
+      const x = c.getContext("2d");
+      x.beginPath(); x.arc(s/2, s/2, s/2, 0, 7); x.clip();
+      const l = Math.min(img.width, img.height);
+      x.drawImage(img, (img.width-l)/2, (img.height-l)/2, l, l, 0, 0, s, s);
+      res(c.toDataURL("image/png").split(",")[1]);
+    };
+    img.onerror = () => res(null);
+    img.src = `data:${mime};base64,${b64}`;
+  });
+}
+async function pedirFoto() {
+  const r = await pywebview.api.leer_foto();
+  if (!r) return null;
+  if (r.error) { toast("err", "Foto", r.error); return null; }
+  const b = await recortar(r.b64, r.mime);
+  if (!b) toast("err", "Foto", "No se pudo procesar esa imagen.");
+  return b;
+}
+
+/* — Primer inicio: crear perfil (obligatorio) — */
+function abrirPerfilInicial() {
+  FOTO_NUEVO = null;
+  $("perfilTitulo").textContent = "¡" + saludoHora() + "! 👋";
+  $("perfilNombre").value = "";
+  $("perfilGuardar").disabled = true;
+  $("perfilAvatar").textContent = "?";
+  $("modalPerfil").classList.add("vis");
+  setTimeout(() => $("perfilNombre").focus(), 250);
+}
+async function perfilFoto() {
+  const b = await pedirFoto();
+  if (!b) return;
+  FOTO_NUEVO = b;
+  pintarAvatar($("perfilAvatar"), b, null);
+}
+async function perfilGuardar() {
+  const n = $("perfilNombre").value.trim();
+  if (!n) return;
+  const kw = { nombre: n };
+  if (FOTO_NUEVO) kw.foto = FOTO_NUEVO;
+  const r = await pywebview.api.prefs_set(kw);
+  if (r && r.error) { toast("err", "Perfil", r.error); return; }
+  PERFIL = (r && r.prefs) || kw;
+  pintarChip();
+  $("modalPerfil").classList.remove("vis");
+  toast("ok", "¡Hola, " + esc(n) + "!", "Tu perfil quedó guardado.");
+}
+$("perfilNombre").addEventListener("input", () => {
+  const n = $("perfilNombre").value.trim();
+  $("perfilGuardar").disabled = !n;
+  if (!FOTO_NUEVO) $("perfilAvatar").textContent = (n[0] || "?").toUpperCase();
+});
+$("perfilNombre").addEventListener("keydown", ev => {
+  if (ev.key === "Enter" && $("perfilNombre").value.trim()) perfilGuardar();
+});
+
+/* — Menú ⚙ Preferencias — */
+function segSel(id, v) {
+  $(id).querySelectorAll("button").forEach(b => b.classList.toggle("act", b.dataset.v === v));
+}
+function segVal(id) {
+  const b = $(id).querySelector("button.act");
+  return b ? b.dataset.v : null;
+}
+function abrirPrefs() {
+  FOTO_EDIT = "keep";
+  $("prefsNombre").value = PERFIL.nombre || "";
+  $("prefsCuenta").textContent = "Cuenta: " + EMAIL;
+  pintarAvatar($("prefsAvatar"), PERFIL.foto, PERFIL.nombre);
+  segSel("segTema", PERFIL.tema ||
+    (document.body.classList.contains("claro") ? "claro" : "oscuro"));
+  segSel("segMod", PERFIL.modulo || "imagine");
+  $("prefsMsg").textContent = "";
+  $("modalPrefs").classList.add("vis");
+}
+function cerrarPrefs() { $("modalPrefs").classList.remove("vis"); }
+async function prefsFoto() {
+  const b = await pedirFoto();
+  if (!b) return;
+  FOTO_EDIT = b;
+  pintarAvatar($("prefsAvatar"), b, null);
+}
+function prefsQuitarFoto() {
+  FOTO_EDIT = "";
+  pintarAvatar($("prefsAvatar"), null, $("prefsNombre").value.trim() || EMAIL);
+}
+async function prefsGuardar() {
+  const n = $("prefsNombre").value.trim();
+  if (!n) { $("prefsMsg").textContent = "El nombre no puede estar vacío"; return; }
+  const kw = { nombre: n, tema: segVal("segTema"), modulo: segVal("segMod") };
+  if (FOTO_EDIT !== "keep") kw.foto = FOTO_EDIT || null;
+  const r = await pywebview.api.prefs_set(kw);
+  if (r && r.error) { $("prefsMsg").textContent = r.error; return; }
+  PERFIL = (r && r.prefs) || kw;
+  aplicarTema(PERFIL.tema || "oscuro");
+  if (PERFIL.modulo && planPermite(PERFIL.modulo)) modulo(PERFIL.modulo, true);
+  pintarChip();
+  cerrarPrefs();
+  toast("ok", "Preferencias", "Cambios guardados ✓");
+}
+$("prefsNombre").addEventListener("keydown", ev => {
+  if (ev.key === "Enter") prefsGuardar();
+});
+
+/* ════ Arranque ════ */
+window.addEventListener("pywebviewready", async () => {
+  document.body.classList.add("lista");
+  modulo("imagine", true);
+  pintarLic({modo:"cargando"});
+  pintarLic(await pywebview.api.estado_inicial());
+});
+window.addEventListener("resize", () => modulo(MOD, true));
+</script>
+</body>
+</html>
