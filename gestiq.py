@@ -90,10 +90,10 @@ REGISTRO_URL = "https://toxicamazonas-svg.github.io/gestiq/cuenta.html"
 
 # ── Paleta sobria (tuplas CTK: primer valor = claro, segundo = oscuro) ───────
 # 4 colores base: fondo neutro, acento verde Bolívar, gris secundario, rojo errores
-BG     = ("#F4F4F6", "#1E1E2E")   # fondo neutro
-CARD   = ("#FFFFFF", "#27273A")   # tarjetas
+BG     = ("#F4F4F6", "#15151F")   # fondo neutro (igual a la web)
+CARD   = ("#FFFFFF", "#1C1C2A")   # tarjetas (igual a la web)
 CARD2  = ("#EDEDF2", "#313147")   # campos / zonas internas
-BORDER = ("#DEDEE6", "#3B3B54")
+BORDER = ("#DEDEE6", "#2E2E44")
 TX     = ("#1B1B2B", "#EDEDF5")   # texto principal
 TM     = ("#6E7285", "#9A9FB4")   # texto secundario (gris)
 
@@ -101,6 +101,19 @@ ACCENT   = "#00B050"              # verde Bolívar (acento corporativo)
 ACCENT_H = "#009A46"              # hover del acento
 ERR      = "#E5484D"              # rojo, solo para errores
 ERR_H    = "#C53A3F"
+
+def _col(c):
+    """Color efectivo según el modo actual (tupla CTk o str)."""
+    if isinstance(c, (tuple, list)):
+        return c[1] if ctk.get_appearance_mode() == "Dark" else c[0]
+    return c
+
+def _hex_mix(a, b, t):
+    """Interpola dos colores hex; base de las animaciones fluidas."""
+    a, b = a.lstrip("#"), b.lstrip("#")
+    return "#%02x%02x%02x" % tuple(
+        round(int(a[i:i+2], 16) + (int(b[i:i+2], 16) - int(a[i:i+2], 16)) * t)
+        for i in (0, 2, 4))
 
 # Consola de registro (fondo oscuro fijo en ambos temas)
 LOG_BG, LOG_FG = "#14141F", "#E2E6F0"
@@ -190,7 +203,7 @@ class App(ctk.CTk):
         ctk.CTkLabel(hdr, text="Gestiq", font=F(19, True),
                      text_color=TX).pack(side="left")
 
-        theme_box = ctk.CTkFrame(hdr, fg_color=CARD2, corner_radius=10)
+        theme_box = ctk.CTkFrame(hdr, fg_color=CARD2, corner_radius=16)
         theme_box.pack(side="right", padx=20, pady=12)
         ctk.CTkLabel(theme_box, text="Modo de visualización", font=F(11),
                      text_color=TM).pack(side="left", padx=(12, 6))
@@ -201,12 +214,12 @@ class App(ctk.CTk):
         self.sw_theme.select()
 
         # Panel de sesión (se muestra solo con sesión iniciada)
-        self.sess_box = ctk.CTkFrame(hdr, fg_color=CARD2, corner_radius=10)
+        self.sess_box = ctk.CTkFrame(hdr, fg_color=CARD2, corner_radius=16)
         self.lbl_sess = ctk.CTkLabel(self.sess_box, text="", font=F(11),
                                      text_color=TM)
         self.lbl_sess.pack(side="left", padx=(12, 8), pady=6)
         ctk.CTkButton(self.sess_box, text="Cerrar sesión", font=F(11),
-                      width=106, height=28, fg_color="transparent",
+                      width=106, height=28, corner_radius=14, fg_color="transparent",
                       border_width=1, border_color=BORDER, text_color=TX,
                       hover_color=CARD,
                       command=self._lic_cerrar_sesion).pack(side="left",
@@ -227,7 +240,7 @@ class App(ctk.CTk):
             txt = f"  {label}" if logo else f"{emoji}   {label}"
             b = ctk.CTkButton(side, text=txt, image=logo, compound="left",
                               anchor="w", height=40,
-                              corner_radius=10, font=F(13),
+                              corner_radius=20, font=F(13),
                               fg_color="transparent", hover_color=CARD2,
                               text_color=TM,
                               command=lambda k=key: self._show(k))
@@ -265,13 +278,38 @@ class App(ctk.CTk):
                 "Tu plan actual no incluye este módulo.\n"
                 "Puedes ampliarlo en la página de tu cuenta.")
             return
+        prev = getattr(self, "_mod_actual", None)
         self._mod_actual = key
         for k, b in self._nav.items():
             active = (k == key)
-            b.configure(fg_color=ACCENT if active else "transparent",
-                        text_color="#FFFFFF" if active else TM,
+            b.configure(text_color="#FFFFFF" if active else TM,
                         hover_color=ACCENT_H if active else CARD2)
+            if prev is None or prev == key:
+                b.configure(fg_color=ACCENT if active else "transparent")
+            elif active:
+                self._fade(b, _col(CARD), ACCENT)
+            elif k == prev:
+                self._fade(b, ACCENT, _col(CARD), final="transparent")
+            else:
+                b.configure(fg_color="transparent")
         (self.imagine_tab if key == "imagine" else self.guardian_tab).lift()
+
+    def _fade(self, btn, c1, c2, final=None, pasos=9, dt=16):
+        """Transición fluida de color entre c1 y c2 (estilo web)."""
+        if getattr(btn, "_fade_id", None):
+            try: self.after_cancel(btn._fade_id)
+            except Exception: pass
+            btn._fade_id = None
+        def paso(i=0):
+            e = 1 - (1 - i / pasos) ** 3          # ease-out
+            try: btn.configure(fg_color=_hex_mix(c1, c2, e))
+            except Exception: return
+            if i < pasos:
+                btn._fade_id = self.after(dt, paso, i + 1)
+            else:
+                btn._fade_id = None
+                if final: btn.configure(fg_color=final)
+        paso()
 
     def _set_plan(self, plan):
         """Actualiza el plan y habilita/deshabilita módulos en la sidebar."""
@@ -415,7 +453,7 @@ class App(ctk.CTk):
         self._lock.place(relx=0, rely=0, relwidth=1, relheight=1)
         self._lock.lift()
 
-        card = ctk.CTkFrame(self._lock, fg_color=CARD, corner_radius=16,
+        card = ctk.CTkFrame(self._lock, fg_color=CARD, corner_radius=20,
                             border_width=1, border_color=BORDER)
         card.place(relx=.5, rely=.45, anchor="center")
         inner = ctk.CTkFrame(card, fg_color="transparent")
@@ -447,12 +485,14 @@ class App(ctk.CTk):
             self._lock_pass.pack(pady=4)
             self._lock_pass.bind("<Return>", lambda *_: self._lic_login())
             self._lock_btn = ctk.CTkButton(inner, text="Entrar", width=290, height=42,
+                                           corner_radius=21,
                                            font=F(14, True), fg_color=ACCENT,
                                            hover_color=ACCENT_H,
                                            command=self._lic_login)
             self._lock_btn.pack(pady=(12, 4))
             self._lock_google = ctk.CTkButton(inner, text="G  Entrar con Google",
-                                              width=290, height=42, font=F(13, True),
+                                              width=290, height=42, corner_radius=21,
+                                              font=F(13, True),
                                               fg_color=CARD2, hover_color=BORDER,
                                               text_color=TX, border_width=1,
                                               border_color=BORDER,
@@ -462,7 +502,7 @@ class App(ctk.CTk):
                                              text_color=ERR, wraplength=290)
             self._lock_status.pack()
             ctk.CTkButton(inner, text="¿Olvidaste tu contraseña? Recupérala aquí",
-                          width=290, height=30, font=F(12),
+                          width=290, height=30, corner_radius=15, font=F(12),
                           fg_color="transparent", hover_color=CARD2,
                           text_color=TM,
                           command=lambda: webbrowser.open(REGISTRO_URL)
@@ -482,11 +522,11 @@ class App(ctk.CTk):
             ctk.CTkLabel(inner, text=msg or "Licencia no válida.", font=F(13),
                          text_color=TM, wraplength=320, justify="center").pack()
             if reintentar:
-                ctk.CTkButton(inner, text="Reintentar", width=290, height=42,
+                ctk.CTkButton(inner, text="Reintentar", width=290, height=42, corner_radius=21,
                               font=F(14, True), fg_color=ACCENT,
                               hover_color=ACCENT_H,
                               command=self._lic_iniciar).pack(pady=(16, 4))
-            ctk.CTkButton(inner, text="Cambiar de cuenta", width=290, height=38,
+            ctk.CTkButton(inner, text="Cambiar de cuenta", width=290, height=38, corner_radius=19,
                           font=F(13), fg_color=CARD2, hover_color=BORDER,
                           text_color=TX,
                           command=lambda: (licencia.cerrar_sesion(),
@@ -591,7 +631,7 @@ class BaseTab(ctk.CTkFrame):
         self.rowconfigure(2, weight=1)   # la tarjeta de ejecución se expande
 
         # ── Tarjeta 1 · Archivo ──────────────────────────────────────────────
-        card = ctk.CTkFrame(self, fg_color=CARD, corner_radius=12)
+        card = ctk.CTkFrame(self, fg_color=CARD, corner_radius=16)
         card.grid(row=0, column=0, sticky="ew", pady=(0, 14))
         card.columnconfigure(0, weight=1)
 
@@ -599,7 +639,7 @@ class BaseTab(ctk.CTkFrame):
                      text_color=TX, anchor="w").grid(
             row=0, column=0, sticky="w", padx=20, pady=(16, 8))
 
-        zone = ctk.CTkFrame(card, fg_color=CARD2, corner_radius=10)
+        zone = ctk.CTkFrame(card, fg_color=CARD2, corner_radius=14)
         zone.grid(row=1, column=0, sticky="ew", padx=20)
         zone.columnconfigure(1, weight=1)
 
@@ -627,7 +667,7 @@ class BaseTab(ctk.CTkFrame):
                                         command=self._pick_file,
                                         fg_color=ACCENT, hover_color=ACCENT_H,
                                         text_color="#FFFFFF", font=F(13, True),
-                                        corner_radius=10, height=36, width=130)
+                                        corner_radius=18, height=36, width=130)
         self.btn_select.grid(row=0, column=2, rowspan=2, padx=16)
         self._controls.append(self.btn_select)
 
@@ -636,7 +676,7 @@ class BaseTab(ctk.CTkFrame):
             row=2, column=0, sticky="w", padx=20, pady=(6, 16))
 
         # ── Tarjeta 2 · Configuración ────────────────────────────────────────
-        cfg = ctk.CTkFrame(self, fg_color=CARD, corner_radius=12)
+        cfg = ctk.CTkFrame(self, fg_color=CARD, corner_radius=16)
         cfg.grid(row=1, column=0, sticky="ew", pady=(0, 14))
 
         ctk.CTkLabel(cfg, text="2 · Configuración", font=F(13, True),
@@ -663,7 +703,7 @@ class BaseTab(ctk.CTkFrame):
                      wraplength=620).pack(fill="x", padx=20, pady=(8, 16))
 
         # ── Tarjeta 3 · Ejecución ────────────────────────────────────────────
-        run = ctk.CTkFrame(self, fg_color=CARD, corner_radius=12)
+        run = ctk.CTkFrame(self, fg_color=CARD, corner_radius=16)
         run.grid(row=2, column=0, sticky="nsew")
         run.columnconfigure(0, weight=1)
         run.rowconfigure(4, weight=1)
@@ -679,14 +719,14 @@ class BaseTab(ctk.CTkFrame):
                                        command=self._start,
                                        fg_color=ACCENT, hover_color=ACCENT_H,
                                        text_color="#FFFFFF", font=F(14, True),
-                                       corner_radius=10, height=44, width=200)
+                                       corner_radius=22, height=44, width=200)
         self.btn_start.pack(side="left")
 
         self.btn_stop = ctk.CTkButton(btns, text="⏹  Detener búsqueda",
                                       command=self._do_stop,
                                       fg_color=ERR, hover_color=ERR_H,
                                       text_color="#FFFFFF", font=F(13, True),
-                                      corner_radius=10, height=44, width=170,
+                                      corner_radius=22, height=44, width=170,
                                       state="disabled")
         self.btn_stop.pack(side="left", padx=(12, 0))
 
@@ -694,7 +734,7 @@ class BaseTab(ctk.CTkFrame):
                                           command=self._save,
                                           fg_color=CARD2, hover_color=BORDER,
                                           text_color=TX, font=F(13),
-                                          corner_radius=10, height=44, width=160,
+                                          corner_radius=22, height=44, width=160,
                                           state="disabled")
         self.btn_download.pack(side="right")
 
@@ -999,10 +1039,10 @@ class BaseTab(ctk.CTkFrame):
         ctk.CTkButton(bf, text="▶  Continuar", command=_ok,
                       fg_color=ACCENT, hover_color=ACCENT_H,
                       text_color="#FFFFFF", font=F(13, True),
-                      corner_radius=10, height=40, width=160).pack(side="left", padx=8)
+                      corner_radius=20, height=40, width=160).pack(side="left", padx=8)
         ctk.CTkButton(bf, text="Cancelar", command=_cancel,
                       fg_color=CARD2, hover_color=BORDER, text_color=TX,
-                      font=F(13), corner_radius=10, height=40,
+                      font=F(13), corner_radius=20, height=40,
                       width=110).pack(side="left", padx=8)
 
     # ── Helpers Excel ────────────────────────────────────────────────────────
