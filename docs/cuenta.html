@@ -7,13 +7,12 @@
 <script src="https://checkout.wompi.co/widget.js"></script>
 <style>
   :root {
-    --bg: #15151F;          /* fondo casi negro (Artlist #171717, tono Gestiq) */
-    --bg2: #1E1E2E;         /* fondo app */
-    --card: #1C1C2A;        /* tarjetas */
-    --card2: #27273A;       /* tarjeta destacada */
-    --inner: #313147;       /* campos internos */
+    --bg: #15151F;
+    --card: #1C1C2A;
+    --card2: #27273A;
+    --inner: #313147;
     --border: #2E2E44;
-    --accent: #00B050;      /* verde Bolívar */
+    --accent: #00B050;
     --accent-h: #009A46;
     --text: #EDEDF5;
     --muted: #9A9FB4;
@@ -26,7 +25,7 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background: var(--bg); color: var(--text); min-height: 100vh;
   }
-  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 24px 80px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px 80px; }
 
   /* ── Header ── */
   header { display: flex; align-items: center; gap: 10px; padding: 22px 0 0; }
@@ -44,62 +43,81 @@
   header a.dl:hover { color: var(--text); border-color: var(--muted); }
 
   /* ── Hero ── */
-  .hero { text-align: center; padding: 58px 0 38px; }
+  .hero { text-align: center; padding: 54px 0 30px; }
   .hero h1 { font-size: clamp(1.7rem, 4.2vw, 2.6rem); font-weight: 800; letter-spacing: -.5px; }
-  .hero p { color: var(--muted); margin-top: 12px; font-size: 1.02rem; max-width: 560px; margin-left: auto; margin-right: auto; }
-  .pill {
-    display: inline-flex; align-items: center; gap: 8px; margin-top: 22px;
-    background: var(--card); border: 1px solid var(--border); border-radius: 99px;
-    padding: 8px 18px; font-size: .85rem; color: var(--muted);
-  }
-  .pill .dot { width: 8px; height: 8px; border-radius: 99px; background: var(--accent); }
+  .hero p { color: var(--muted); margin-top: 12px; font-size: 1.02rem; max-width: 580px; margin-left: auto; margin-right: auto; }
 
-  /* ── Tarjetas (fila estilo Artlist) ── */
-  .row {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 22px;
-    align-items: start; margin-top: 10px;
+  /* ── Toggle de periodo (estilo Artlist) ── */
+  .toggle {
+    display: inline-flex; background: var(--card); border: 1px solid var(--border);
+    border-radius: 99px; padding: 5px; margin-top: 26px; gap: 4px;
   }
-  @media (max-width: 840px) { .row { grid-template-columns: 1fr; } }
+  .toggle button {
+    border: none; background: transparent; color: var(--muted); cursor: pointer;
+    font-weight: 700; font-size: .88rem; padding: 9px 20px; border-radius: 99px;
+    display: flex; align-items: center; gap: 7px; transition: background .15s, color .15s;
+  }
+  .toggle button.act { background: var(--inner); color: var(--text); }
+  .ahorro {
+    background: rgba(0,176,80,.18); color: #2FD877; font-size: .7rem;
+    font-weight: 800; padding: 3px 9px; border-radius: 99px;
+  }
+
+  /* ── Fila de planes ── */
+  .row {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+    align-items: start; margin-top: 34px;
+  }
+  @media (max-width: 920px) { .row { grid-template-columns: 1fr; max-width: 460px; margin-left: auto; margin-right: auto; } }
   .card {
     background: var(--card); border: 1px solid var(--border);
-    border-radius: 18px; padding: 30px 28px;
+    border-radius: 18px; padding: 28px 26px;
   }
-  .card.destacada { background: var(--card2); border-color: #3A3A55; position: relative; }
+  .card.destacada { background: var(--card2); border-color: var(--accent); }
 
-  .plan-head { display: flex; align-items: center; justify-content: space-between; }
-  .plan-name { font-size: 1.15rem; font-weight: 700; }
+  .plan-head { display: flex; align-items: center; justify-content: space-between; min-height: 28px; }
+  .plan-name { font-size: 1.1rem; font-weight: 700; }
   .badge {
-    background: var(--accent); color: #fff; font-size: .72rem; font-weight: 800;
-    padding: 5px 12px; border-radius: 99px; letter-spacing: .3px;
+    background: var(--accent); color: #fff; font-size: .7rem; font-weight: 800;
+    padding: 5px 11px; border-radius: 99px; letter-spacing: .3px;
   }
-  .precio-big { margin-top: 26px; display: flex; align-items: baseline; gap: 8px; }
-  .precio-big .num { font-size: 3rem; font-weight: 800; letter-spacing: -1px; }
-  .precio-big .per { color: var(--muted); font-size: .95rem; }
-  .precio-sub { color: var(--muted); font-size: .82rem; margin-top: 4px; }
+  .plan-desc { color: var(--muted); font-size: .85rem; margin-top: 6px; min-height: 2.6em; }
+  .precio-big { margin-top: 18px; display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+  .precio-big .num { font-size: 2.35rem; font-weight: 800; letter-spacing: -1px; }
+  .precio-big .per { color: var(--muted); font-size: .9rem; }
+  .precio-sub { color: var(--muted); font-size: .8rem; margin-top: 5px; min-height: 2.4em; }
+  .precio-sub b { color: var(--text); }
 
   .cta {
-    width: 100%; margin-top: 24px; padding: 15px; border: none; border-radius: 99px;
+    width: 100%; margin-top: 18px; padding: 14px; border: none; border-radius: 99px;
     background: linear-gradient(180deg, #00C75B, var(--accent));
-    color: #fff; font-size: 1.02rem; font-weight: 800; cursor: pointer;
-    box-shadow: 0 6px 18px rgba(0,176,80,.28); transition: transform .12s, box-shadow .12s;
+    color: #fff; font-size: .98rem; font-weight: 800; cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0,176,80,.25); transition: transform .12s, box-shadow .12s;
   }
-  .cta:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(0,176,80,.36); }
+  .cta:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(0,176,80,.35); }
   .cta:disabled { opacity: .45; cursor: default; transform: none; box-shadow: none; }
-
-  .feats { margin-top: 26px; border-top: 1px solid var(--border); padding-top: 20px; list-style: none; }
-  .feats li {
-    display: flex; gap: 11px; align-items: flex-start;
-    font-size: .92rem; padding: 7px 0; color: var(--text);
+  .cta.sec {
+    background: var(--inner); box-shadow: none; color: var(--text);
   }
-  .feats li small { display: block; color: var(--muted); font-size: .8rem; margin-top: 2px; }
+  .cta.sec:hover { background: #3A3A55; }
+
+  .feats { margin-top: 22px; border-top: 1px solid var(--border); padding-top: 16px; list-style: none; }
+  .feats li {
+    display: flex; gap: 10px; align-items: flex-start;
+    font-size: .88rem; padding: 6px 0; color: var(--text);
+  }
+  .feats li small { display: block; color: var(--muted); font-size: .78rem; margin-top: 2px; }
   .check {
-    flex: none; width: 18px; height: 18px; border-radius: 99px; margin-top: 1px;
+    flex: none; width: 17px; height: 17px; border-radius: 99px; margin-top: 1px;
     background: rgba(0,176,80,.16); color: var(--accent);
     display: flex; align-items: center; justify-content: center;
-    font-size: .72rem; font-weight: 800;
+    font-size: .68rem; font-weight: 800;
   }
+  .no { background: rgba(154,159,180,.12); color: var(--muted); }
+  .feats li.off, .feats li.off small { color: var(--muted); }
 
-  /* ── Cuenta / auth ── */
+  /* ── Cuenta / auth (centrado bajo los planes) ── */
+  .cuenta-zona { max-width: 440px; margin: 46px auto 0; }
   .tabs { display: flex; gap: 8px; margin-bottom: 20px; background: var(--inner); padding: 5px; border-radius: 99px; }
   .tab {
     flex: 1; padding: 10px; border-radius: 99px; background: transparent;
@@ -127,11 +145,12 @@
   .chip.activa  { background: rgba(0,176,80,.16);  color: #2FD877; }
   .chip.vencida { background: rgba(229,72,77,.16); color: var(--err); }
   .chip.sin     { background: rgba(255,169,77,.16); color: var(--warn); }
+  .chip.plan    { background: var(--card); color: var(--text); border: 1px solid var(--border); }
   .link { background: none; border: none; color: var(--muted); font-size: .82rem;
           cursor: pointer; text-decoration: underline; margin-top: 16px; width: 100%; }
   .nota-pago { text-align: center; color: var(--muted); font-size: .82rem; margin-top: 12px; }
 
-  /* ── FAQ (acordeón Artlist) ── */
+  /* ── FAQ ── */
   .faq { margin-top: 90px; }
   .faq h2 { font-size: 1.7rem; font-weight: 800; margin-bottom: 14px; }
   .faq details { border-top: 1px solid var(--border); }
@@ -159,34 +178,83 @@
   </header>
 
   <div class="hero">
-    <h1>Un solo plan. Todo Gestiq.</h1>
+    <h1>El plan perfecto para tu operación.</h1>
     <p>Automatiza tus consultas en ARL Bolívar y Guardián, y recibe los resultados directo en tu Excel. Activación inmediata al pagar.</p>
-    <div class="pill"><span class="dot"></span> Pago seguro con tarjeta, PSE o Nequi vía Wompi</div>
+    <div class="toggle" id="toggle">
+      <button class="act" onclick="periodo(1,this)">Mensual</button>
+      <button onclick="periodo(6,this)">Semestral <span class="ahorro">Ahorra 15%</span></button>
+      <button onclick="periodo(12,this)">Anual <span class="ahorro">Ahorra 25%</span></button>
+    </div>
   </div>
 
   <div class="row">
 
-    <!-- ════ Plan (estilo Artlist) ════ -->
-    <div class="card destacada">
-      <div class="plan-head">
-        <span class="plan-name">Gestiq Pro</span>
-        <span class="badge">PLAN ÚNICO</span>
-      </div>
+    <!-- ════ Plan IMAGINE ════ -->
+    <div class="card">
+      <div class="plan-head"><span class="plan-name">Imagine</span></div>
+      <p class="plan-desc">Solo el módulo de ARL Bolívar (IMAGINE).</p>
       <div class="precio-big">
-        <span class="num" id="precio">$50.000</span>
+        <span class="num" id="p-imagine">$250.000</span>
         <span class="per">COP /mes</span>
       </div>
-      <p class="precio-sub">Renovación manual · Sin permanencia ni cobros automáticos</p>
-      <button class="cta" id="ctaPlan" onclick="comenzar()">Comenzar</button>
+      <p class="precio-sub" id="s-imagine">Facturación mensual</p>
+      <button class="cta sec" id="cta-imagine" onclick="comenzar('imagine')">Elegir Imagine</button>
+      <ul class="feats">
+        <li><span class="check">✓</span><div>Módulo IMAGINE — ARL Bolívar<small>Consulta masiva de casos desde tu Excel.</small></div></li>
+        <li class="off"><span class="check no">✕</span><div>Módulo GUARDIAN</div></li>
+        <li><span class="check">✓</span><div>Resultados directo en tu Excel</div></li>
+        <li><span class="check">✓</span><div>Licencia para 1 equipo<small>Windows o Mac, con login permanente.</small></div></li>
+        <li><span class="check">✓</span><div>Activación automática al pagar</div></li>
+        <li><span class="check">✓</span><div>Actualizaciones incluidas</div></li>
+      </ul>
+    </div>
+
+    <!-- ════ Plan COMPLETO (destacado) ════ -->
+    <div class="card destacada">
+      <div class="plan-head">
+        <span class="plan-name">Completo</span>
+        <span class="badge">MÁS POPULAR</span>
+      </div>
+      <p class="plan-desc">Los dos módulos: IMAGINE y GUARDIAN. Ahorra $50.000/mes frente a comprarlos por separado.</p>
+      <div class="precio-big">
+        <span class="num" id="p-completo">$450.000</span>
+        <span class="per">COP /mes</span>
+      </div>
+      <p class="precio-sub" id="s-completo">Facturación mensual</p>
+      <button class="cta" id="cta-completo" onclick="comenzar('completo')">Elegir Completo</button>
       <ul class="feats">
         <li><span class="check">✓</span><div>Módulo IMAGINE — ARL Bolívar<small>Consulta masiva de casos desde tu Excel.</small></div></li>
         <li><span class="check">✓</span><div>Módulo GUARDIAN<small>Automatización completa del portal.</small></div></li>
-        <li><span class="check">✓</span><div>Resultados directo en tu Excel<small>Con el mismo formato de tu archivo.</small></div></li>
+        <li><span class="check">✓</span><div>Resultados directo en tu Excel</div></li>
         <li><span class="check">✓</span><div>Licencia para 1 equipo<small>Windows o Mac, con login permanente.</small></div></li>
-        <li><span class="check">✓</span><div>Activación automática<small>Tu licencia se activa sola en menos de un minuto tras pagar.</small></div></li>
-        <li><span class="check">✓</span><div>Actualizaciones incluidas<small>Siempre la última versión, sin pagar de más.</small></div></li>
+        <li><span class="check">✓</span><div>Activación automática al pagar</div></li>
+        <li><span class="check">✓</span><div>Actualizaciones incluidas</div></li>
       </ul>
     </div>
+
+    <!-- ════ Plan GUARDIAN ════ -->
+    <div class="card">
+      <div class="plan-head"><span class="plan-name">Guardian</span></div>
+      <p class="plan-desc">Solo el módulo del portal Guardián.</p>
+      <div class="precio-big">
+        <span class="num" id="p-guardian">$250.000</span>
+        <span class="per">COP /mes</span>
+      </div>
+      <p class="precio-sub" id="s-guardian">Facturación mensual</p>
+      <button class="cta sec" id="cta-guardian" onclick="comenzar('guardian')">Elegir Guardian</button>
+      <ul class="feats">
+        <li class="off"><span class="check no">✕</span><div>Módulo IMAGINE — ARL Bolívar</div></li>
+        <li><span class="check">✓</span><div>Módulo GUARDIAN<small>Automatización completa del portal.</small></div></li>
+        <li><span class="check">✓</span><div>Resultados directo en tu Excel</div></li>
+        <li><span class="check">✓</span><div>Licencia para 1 equipo<small>Windows o Mac, con login permanente.</small></div></li>
+        <li><span class="check">✓</span><div>Activación automática al pagar</div></li>
+        <li><span class="check">✓</span><div>Actualizaciones incluidas</div></li>
+      </ul>
+    </div>
+
+  </div>
+
+  <div class="cuenta-zona">
 
     <!-- ════ Sin sesión: crear cuenta / entrar ════ -->
     <div class="card" id="cardAuth" style="display:none">
@@ -206,18 +274,20 @@
       <div class="msg" id="msgAuth"></div>
     </div>
 
-    <!-- ════ Con sesión: estado + pago ════ -->
+    <!-- ════ Con sesión: estado ════ -->
     <div class="card" id="cardCuenta" style="display:none">
       <p class="correo" id="correo"></p>
       <div class="estado">
         <span>Estado de tu licencia</span>
         <span class="chip sin" id="chip">—</span>
       </div>
+      <div class="estado" id="rowPlan" style="display:none">
+        <span>Tu plan</span><span class="chip plan" id="planChip">—</span>
+      </div>
       <div class="estado" id="rowVence" style="display:none">
         <span>Activa hasta</span><span id="vence"></span>
       </div>
-      <button class="cta" id="btnPagar" onclick="pagar()">Pagar 1 mes</button>
-      <p class="nota-pago">Tarjeta, PSE o Nequi · Procesado por Wompi</p>
+      <p class="nota-pago">Para pagar o renovar, elige un plan arriba.<br>Tarjeta, PSE o Nequi · Procesado por Wompi</p>
       <div class="msg" id="msgPago"></div>
       <button class="link" onclick="salir()">Cerrar sesión</button>
     </div>
@@ -230,7 +300,12 @@
 
     <details>
       <summary>¿Cómo se activa mi licencia después de pagar? <span class="chev">▼</span></summary>
-      <p class="resp">Automáticamente. Al aprobarse el pago, tu licencia se activa en menos de un minuto. Solo abre la app Gestiq e inicia sesión con el mismo correo de esta página.</p>
+      <p class="resp">Automáticamente. Al aprobarse el pago, tu licencia se activa en menos de un minuto con el plan que elegiste. Solo abre la app Gestiq e inicia sesión con el mismo correo de esta página.</p>
+    </details>
+
+    <details>
+      <summary>¿Cuál es la diferencia entre los planes? <span class="chev">▼</span></summary>
+      <p class="resp">Imagine incluye solo el módulo de ARL Bolívar; Guardian incluye solo el módulo del portal Guardián; el plan Completo incluye ambos módulos y ahorra $50.000 al mes frente a pagar los dos por separado. Puedes cambiar de plan en cualquier momento: tu próximo pago define tu plan.</p>
     </details>
 
     <details>
@@ -240,7 +315,7 @@
 
     <details>
       <summary>¿La suscripción se renueva sola? <span class="chev">▼</span></summary>
-      <p class="resp">No. No hay cobros automáticos: cada pago te da 30 días y tú decides cuándo renovar desde esta misma página. Si la licencia vence, la app se bloquea hasta el próximo pago, sin perder tus datos.</p>
+      <p class="resp">No. No hay cobros automáticos: cada pago te da el tiempo del periodo elegido (1, 6 o 12 meses) y tú decides cuándo renovar desde esta misma página. Si la licencia vence, la app se bloquea hasta el próximo pago, sin perder tus datos.</p>
     </details>
 
     <details>
@@ -266,22 +341,39 @@
 </div>
 
 <script>
-/* ══ CONFIGURACIÓN (editar al cambiar precio o llaves) ══ */
+/* ══ CONFIGURACIÓN (editar al cambiar precios o llaves) ══ */
 const SUPABASE_URL  = "https://xdydorreyvkenbifefus.supabase.co";
 const SUPABASE_KEY  = "sb_publishable_podBtj6El-uznTp5gCzAYg_Tss_j1Xj";
 const WOMPI_PUBLIC  = "PEGAR_LLAVE_PUBLICA_WOMPI";   // pub_test_... o pub_prod_...
-const PRECIO_COP    = 50000;                          // precio mensual en pesos
+/* Totales en pesos por plan y periodo (deben coincidir con el webhook) */
+const PRECIOS = {
+  imagine:  { 1: 250000, 6: 1275000, 12: 2250000 },
+  guardian: { 1: 250000, 6: 1275000, 12: 2250000 },
+  completo: { 1: 450000, 6: 2295000, 12: 4050000 },
+};
+const NOMBRES = { imagine: "Imagine", guardian: "Guardian", completo: "Completo" };
 /* ═══════════════════════════════════════════════════════ */
 
 const $ = id => document.getElementById(id);
-let ses = null;
+const fmt = n => "$" + n.toLocaleString("es-CO");
+let ses = null, meses = 1;
 try { ses = JSON.parse(localStorage.getItem("gestiq_ses") || "null"); } catch (e) {}
 
-document.getElementById("precio").textContent =
-  "$" + PRECIO_COP.toLocaleString("es-CO");
+function periodo(m, btn) {
+  meses = m;
+  document.querySelectorAll("#toggle button").forEach(b => b.classList.toggle("act", b === btn));
+  for (const plan of Object.keys(PRECIOS)) {
+    const total = PRECIOS[plan][m];
+    $("p-" + plan).textContent = fmt(Math.round(total / m));
+    $("s-" + plan).innerHTML =
+      m === 1 ? "Facturación mensual"
+              : "Un pago de <b>" + fmt(total) + "</b> cada " + (m === 6 ? "6 meses" : "año");
+  }
+}
 
-function comenzar() {
-  if (ses) { pagar(); return; }
+function comenzar(plan) {
+  if (ses) { pagar(plan); return; }
+  sessionStorage.setItem("gestiq_plan", plan);
   $("cardAuth").scrollIntoView({ behavior: "smooth", block: "center" });
   setTimeout(() => $("email").focus(), 400);
 }
@@ -322,7 +414,12 @@ async function enviar() {
   const path = esReg ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
   const { st, j } = await api(path, { email: em, password: pw });
   $("btnAuth").disabled = false;
-  if (st === 200 && j && j.access_token) { guardar(j); pintar(); return; }
+  if (st === 200 && j && j.access_token) {
+    guardar(j); pintar();
+    const p = sessionStorage.getItem("gestiq_plan");
+    if (p) { sessionStorage.removeItem("gestiq_plan"); pagar(p); }
+    return;
+  }
   const e = (j && (j.msg || j.error_description || (j.error && j.error.message))) || "";
   if (/already|registered/i.test(e)) M.textContent = "Ese correo ya tiene cuenta — usa «Ya tengo cuenta».";
   else if (/invalid login/i.test(e))  M.textContent = "Correo o contraseña incorrectos.";
@@ -347,53 +444,51 @@ async function estado() {
 async function pintar() {
   if (!ses) {
     $("cardAuth").style.display = ""; $("cardCuenta").style.display = "none";
-    $("ctaPlan").textContent = "Comenzar";
     return;
   }
   $("cardAuth").style.display = "none"; $("cardCuenta").style.display = "";
   $("correo").textContent = "👤 " + ses.email;
   const e = await estado();
   const chip = $("chip");
+  const planTxt = e && e.plan && NOMBRES[e.plan] ? NOMBRES[e.plan] : null;
+  $("rowPlan").style.display = planTxt ? "" : "none";
+  if (planTxt) $("planChip").textContent = planTxt.toUpperCase();
   if (e && e.ok) {
     chip.textContent = "ACTIVA"; chip.className = "chip activa";
     $("rowVence").style.display = "";
     $("vence").textContent = new Date(e.expires_at).toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" });
-    $("btnPagar").textContent = "Renovar 1 mes más";
-    $("ctaPlan").textContent = "Renovar 1 mes más";
   } else if (e && e.status) {
     chip.textContent = e.status === "suspendida" ? "SUSPENDIDA" : "VENCIDA";
     chip.className = "chip vencida";
     $("rowVence").style.display = "";
     $("vence").textContent = new Date(e.expires_at).toLocaleDateString("es-CO");
-    $("btnPagar").textContent = "Pagar 1 mes";
-    $("ctaPlan").textContent = "Pagar 1 mes";
   } else {
     chip.textContent = "SIN PAGAR"; chip.className = "chip sin";
     $("rowVence").style.display = "none";
-    $("btnPagar").textContent = "Pagar 1 mes";
-    $("ctaPlan").textContent = "Pagar 1 mes";
   }
 }
 
-async function pagar() {
+async function pagar(plan) {
   const M = $("msgPago"); M.className = "msg err"; M.textContent = "";
+  $("cardCuenta").scrollIntoView({ behavior: "smooth", block: "center" });
   if (WOMPI_PUBLIC.indexOf("PEGAR") === 0) { M.textContent = "Los pagos aún no están configurados (falta la llave de Wompi)."; return; }
-  $("btnPagar").disabled = true; M.className = "msg"; M.textContent = "Abriendo pago seguro…";
+  M.className = "msg"; M.textContent = "Abriendo pago seguro…";
   try {
-    const ref = ses.uid + "_" + Date.now();
-    const cents = PRECIO_COP * 100;
+    const ref = ses.uid + "_" + plan + "_" + meses + "_" + Date.now();
+    const cents = PRECIOS[plan][meses] * 100;
+    const cuerpo = JSON.stringify({ reference: ref, amountInCents: cents });
     let r = await fetch(SUPABASE_URL + "/functions/v1/wompi-firma", {
       method: "POST",
       headers: { "Content-Type": "application/json", "apikey": SUPABASE_KEY,
                  "Authorization": "Bearer " + ses.access },
-      body: JSON.stringify({ reference: ref, amountInCents: cents })
+      body: cuerpo
     });
     if (r.status === 401 && await refrescar())
       r = await fetch(SUPABASE_URL + "/functions/v1/wompi-firma", {
         method: "POST",
         headers: { "Content-Type": "application/json", "apikey": SUPABASE_KEY,
                    "Authorization": "Bearer " + ses.access },
-        body: JSON.stringify({ reference: ref, amountInCents: cents })
+        body: cuerpo
       });
     const f = await r.json();
     if (!f.signature) throw new Error(f.error || "firma");
@@ -407,7 +502,7 @@ async function pagar() {
       const M2 = $("msgPago");
       if (res && res.transaction && res.transaction.status === "APPROVED") {
         M2.className = "msg ok";
-        M2.textContent = "¡Pago aprobado! Tu licencia se activa en segundos…";
+        M2.textContent = "¡Pago aprobado! Tu plan " + NOMBRES[plan] + " se activa en segundos…";
         setTimeout(pintar, 4000); setTimeout(pintar, 12000);
       } else {
         M2.className = "msg err";
@@ -418,7 +513,6 @@ async function pagar() {
     M.className = "msg err";
     M.textContent = "No se pudo iniciar el pago. Intenta de nuevo.";
   }
-  $("btnPagar").disabled = false;
 }
 
 function salir(rec) {
