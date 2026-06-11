@@ -145,6 +145,7 @@ class App(ctk.CTk):
         self._lic = None            # sesión de licencia activa
         self._lock = None           # overlay de login/bloqueo
         self._hb = None             # heartbeat de licencia
+        self._plan = "completo"     # imagine | guardian | completo
         self.after(80, self._lic_iniciar)
         if not HAVE_PW:
             messagebox.showwarning(
@@ -250,13 +251,39 @@ class App(ctk.CTk):
             t.grid(row=0, column=0, sticky="nsew")
         self._show("imagine")
 
+    # Módulos permitidos por plan
+    _PLAN_MODS = {"imagine": ("imagine",), "guardian": ("guardian",),
+                  "completo": ("imagine", "guardian")}
+
+    def _mods_permitidos(self):
+        return self._PLAN_MODS.get(self._plan, ("imagine", "guardian"))
+
     def _show(self, key):
+        if key not in self._mods_permitidos():
+            messagebox.showinfo(
+                "Módulo no incluido",
+                "Tu plan actual no incluye este módulo.\n"
+                "Puedes ampliarlo en la página de tu cuenta.")
+            return
+        self._mod_actual = key
         for k, b in self._nav.items():
             active = (k == key)
             b.configure(fg_color=ACCENT if active else "transparent",
                         text_color="#FFFFFF" if active else TM,
                         hover_color=ACCENT_H if active else CARD2)
         (self.imagine_tab if key == "imagine" else self.guardian_tab).lift()
+
+    def _set_plan(self, plan):
+        """Actualiza el plan y habilita/deshabilita módulos en la sidebar."""
+        plan = str(plan or "completo").lower()
+        if plan not in self._PLAN_MODS:      # valores antiguos (p.ej. 'mensual')
+            plan = "completo"
+        self._plan = plan
+        mods = self._mods_permitidos()
+        for k, b in self._nav.items():
+            b.configure(state="normal" if k in mods else "disabled")
+        if getattr(self, "_mod_actual", "imagine") not in mods:
+            self._show(mods[0])
 
     def _on_close(self):
         if any(t._running for t in (self.imagine_tab, self.guardian_tab)):
@@ -283,7 +310,7 @@ class App(ctk.CTk):
                     self.after(0, lambda: self._lock_mostrar("login")); return
                 r = licencia.verificar(s)
                 if r.get("ok"):
-                    self.after(0, lambda: self._lic_ok(s))
+                    self.after(0, lambda r=r: self._lic_ok(s, r))
                 else:
                     self.after(0, lambda m=licencia.motivo(r):
                                self._lock_mostrar("bloqueado", m))
@@ -292,8 +319,9 @@ class App(ctk.CTk):
                            self._lock_mostrar("bloqueado", m, reintentar=True))
         threading.Thread(target=work, daemon=True).start()
 
-    def _lic_ok(self, s):
+    def _lic_ok(self, s, r=None):
         self._lic = s
+        self._set_plan((r or {}).get("plan"))
         if self._lock is not None:
             try: self._lock.destroy()
             except Exception: pass
@@ -333,6 +361,8 @@ class App(ctk.CTk):
                 r = licencia.verificar(self._lic)
                 if not r.get("ok"):
                     self.after(0, lambda m=licencia.motivo(r): self._lic_bloquear(m))
+                else:
+                    self.after(0, lambda p=r.get("plan"): self._set_plan(p))
             except Exception as e:
                 self.after(0, lambda m=str(e): self._lic_bloquear(m, reintentar=True))
         threading.Thread(target=work, daemon=True).start()
@@ -347,7 +377,7 @@ class App(ctk.CTk):
                 t._do_stop()
         self._lock_mostrar("bloqueado", msg, reintentar=reintentar)
 
-    def lic_check_run(self):
+    def lic_check_run(self, tab=None):
         """Validación obligatoria antes de cada ejecución del bot."""
         if licencia is None or not licencia.configurado():
             self._lock_mostrar("bloqueado",
@@ -359,6 +389,14 @@ class App(ctk.CTk):
         try:
             r = licencia.verificar(self._lic)
             if r.get("ok"):
+                self._set_plan(r.get("plan"))
+                mod = "guardian" if tab is self.guardian_tab else "imagine"
+                if mod not in self._mods_permitidos():
+                    messagebox.showinfo(
+                        "Módulo no incluido",
+                        "Tu plan actual no incluye este módulo.\n"
+                        "Puedes ampliarlo en la página de tu cuenta.")
+                    return False
                 return True
             self._lic_bloquear(licencia.motivo(r))
         except Exception as e:
@@ -454,7 +492,7 @@ class App(ctk.CTk):
                 s = licencia.login(em, pw)
                 r = licencia.verificar(s)
                 if r.get("ok"):
-                    self.after(0, lambda: self._lic_ok(s))
+                    self.after(0, lambda r=r: self._lic_ok(s, r))
                 else:
                     licencia.cerrar_sesion()
                     self.after(0, lambda m=licencia.motivo(r):
@@ -739,7 +777,7 @@ class BaseTab(ctk.CTkFrame):
             messagebox.showerror("Falta un componente",
                                  "Playwright no está instalado en este equipo.")
             return
-        if not self.app.lic_check_run():
+        if not self.app.lic_check_run(self):
             return
         try:
             self.wb = openpyxl.load_workbook(self.xl_path)
