@@ -179,6 +179,60 @@ def login(email, password):
     raise LicenciaError(f"No se pudo iniciar sesión ({st}). {msg}".strip())
 
 
+def login_google(timeout=180):
+    """Login con Google: abre el navegador y espera el callback local (PKCE)."""
+    import threading, webbrowser
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    from urllib.parse import urlencode, urlparse, parse_qs
+
+    verifier = base64.urlsafe_b64encode(os.urandom(40)).decode().rstrip("=")
+    challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
+
+    resultado, listo = {}, __import__("threading").Event()
+
+    class _H(BaseHTTPRequestHandler):
+        def do_GET(self):
+            q = parse_qs(urlparse(self.path).query)
+            code = (q.get("code") or [""])[0]
+            ok = bool(code)
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            cuerpo = ("<h2>Listo ✔</h2><p>Ya puedes volver a Gestiq.</p>" if ok else
+                      "<h2>Algo salió mal</h2><p>Vuelve a Gestiq e intenta de nuevo.</p>")
+            self.wfile.write((
+                "<html><body style='font-family:sans-serif;background:#15151F;"
+                "color:#EDEDF5;text-align:center;padding-top:80px'>"
+                + cuerpo + "</body></html>").encode())
+            resultado["code"] = code
+            listo.set()
+        def log_message(self, *a):  # silencio
+            pass
+
+    srv = HTTPServer(("127.0.0.1", 0), _H)
+    puerto = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        params = urlencode({"provider": "google",
+                            "redirect_to": f"http://localhost:{puerto}",
+                            "code_challenge": challenge,
+                            "code_challenge_method": "s256"})
+        webbrowser.open(f"{SUPABASE_URL}/auth/v1/authorize?{params}")
+        if not listo.wait(timeout):
+            raise LicenciaError("Tiempo de espera agotado. Intenta de nuevo.")
+    finally:
+        threading.Thread(target=srv.shutdown, daemon=True).start()
+    code = resultado.get("code", "")
+    if not code:
+        raise LicenciaError("Google no autorizó el acceso.")
+    st, j = _post("/auth/v1/token?grant_type=pkce",
+                  {"auth_code": code, "code_verifier": verifier})
+    if st == 200:
+        return _sesion_desde(j)
+    raise LicenciaError(f"No se pudo completar el acceso con Google ({st}).")
+
+
 def restaurar_sesion():
     """Reanuda la sesión guardada sin pedir contraseña. None si no hay."""
     rt = _leer("refresh")

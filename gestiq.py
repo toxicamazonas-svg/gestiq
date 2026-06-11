@@ -451,9 +451,22 @@ class App(ctk.CTk):
                                            hover_color=ACCENT_H,
                                            command=self._lic_login)
             self._lock_btn.pack(pady=(12, 4))
+            self._lock_google = ctk.CTkButton(inner, text="G  Entrar con Google",
+                                              width=290, height=42, font=F(13, True),
+                                              fg_color=CARD2, hover_color=BORDER,
+                                              text_color=TX, border_width=1,
+                                              border_color=BORDER,
+                                              command=self._lic_login_google)
+            self._lock_google.pack(pady=(0, 4))
             self._lock_status = ctk.CTkLabel(inner, text="", font=F(12),
                                              text_color=ERR, wraplength=290)
             self._lock_status.pack()
+            ctk.CTkButton(inner, text="¿Olvidaste tu contraseña? Recupérala aquí",
+                          width=290, height=30, font=F(12),
+                          fg_color="transparent", hover_color=CARD2,
+                          text_color=TM,
+                          command=lambda: webbrowser.open(REGISTRO_URL)
+                          ).pack(pady=(6, 0))
             ctk.CTkButton(inner, text="¿No tienes cuenta? Regístrate y paga aquí",
                           width=290, height=34, font=F(12),
                           fg_color="transparent", hover_color=CARD2,
@@ -502,6 +515,32 @@ class App(ctk.CTk):
                     try:
                         self._lock_btn.configure(state="normal", text="Entrar")
                         self._lock_status.configure(text=m)
+                    except Exception:
+                        pass
+                self.after(0, ui)
+        threading.Thread(target=work, daemon=True).start()
+
+    def _lic_login_google(self):
+        """Abre el navegador para entrar con Google y espera el resultado."""
+        self._lock_google.configure(state="disabled", text="Abriendo navegador…")
+        self._lock_status.configure(text="Completa el acceso en tu navegador…",
+                                    text_color=TM)
+        def work():
+            try:
+                s = licencia.login_google()
+                r = licencia.verificar(s)
+                if r.get("ok"):
+                    self.after(0, lambda r=r: self._lic_ok(s, r))
+                else:
+                    licencia.cerrar_sesion()
+                    self.after(0, lambda m=licencia.motivo(r):
+                               self._lock_mostrar("bloqueado", m))
+            except Exception as e:
+                def ui(m=str(e)):
+                    try:
+                        self._lock_google.configure(state="normal",
+                                                    text="G  Entrar con Google")
+                        self._lock_status.configure(text=m, text_color=ERR)
                     except Exception:
                         pass
                 self.after(0, ui)
