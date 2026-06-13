@@ -182,7 +182,7 @@ class Api:
             self._plan = "completo"
         self._arrancar_heartbeat()
         return self._lic_dict("ok", email=s.get("email", ""), plan=self._plan,
-                              prefs=G._prefs_get(s.get("email", "")))
+                              prefs=self._perfil())
 
     def salir(self):
         for t in self.tabs.values():
@@ -323,8 +323,29 @@ class Api:
     def _email(self):
         return (self._lic or {}).get("email", "")
 
+    def _perfil(self):
+        """Perfil de la cuenta: el servidor manda, con respaldo local.
+        La primera vez tras actualizar, sube el perfil local al servidor."""
+        em = self._email()
+        local = G._prefs_get(em)
+        if self._lic is None or licencia is None:
+            return local
+        try:
+            serv = licencia.get_profile(self._lic)
+        except Exception:
+            serv = {}
+        if serv:
+            if serv != local:
+                try: G._prefs_set(em, **serv)
+                except Exception: pass
+            return serv
+        if local:                      # servidor vacío → migrar lo local
+            try: licencia.set_profile(self._lic, **local)
+            except Exception: pass
+        return local
+
     def prefs_get(self):
-        return G._prefs_get(self._email())
+        return self._perfil()
 
     def prefs_set(self, kw):
         em = self._email()
@@ -334,7 +355,10 @@ class Api:
             kw = {k: v for k, v in dict(kw or {}).items()
                   if k in ("nombre", "foto", "tema", "modulo")}
             G._prefs_set(em, **kw)
-            return {"ok": True, "prefs": G._prefs_get(em)}
+            if self._lic is not None and licencia is not None:
+                try: licencia.set_profile(self._lic, **kw)
+                except Exception: pass
+            return {"ok": True, "prefs": self._perfil()}
         except Exception as e:
             return {"error": str(e)}
 

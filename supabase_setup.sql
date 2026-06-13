@@ -29,6 +29,11 @@ create table if not exists public.licenses (
 -- Nadie accede a la tabla directamente desde la app (solo vía la función)
 alter table public.licenses enable row level security;
 
+-- Equipos ilimitados para cuentas propietarias: si es true, check_license
+-- NO ata ni compara machine_id (esa cuenta entra desde cualquier equipo).
+alter table public.licenses
+  add column if not exists unlimited_devices boolean not null default false;
+
 -- Función que valida TODO en el servidor: licencia, estado, fecha (hora del
 -- servidor) y equipo. La app solo recibe el veredicto.
 create or replace function public.check_license(p_machine_id text)
@@ -46,15 +51,18 @@ begin
     return json_build_object('ok', false, 'reason', 'SIN_LICENCIA');
   end if;
 
-  -- primer uso: ata la licencia a este equipo
-  if lic.machine_id is null or lic.machine_id = '' then
-    update licenses set machine_id = p_machine_id, updated_at = now()
-      where user_id = auth.uid();
-    lic.machine_id := p_machine_id;
-  end if;
+  -- Equipos ilimitados (cuentas propietarias): no atar ni comparar machine_id
+  if not coalesce(lic.unlimited_devices, false) then
+    -- primer uso: ata la licencia a este equipo
+    if lic.machine_id is null or lic.machine_id = '' then
+      update licenses set machine_id = p_machine_id, updated_at = now()
+        where user_id = auth.uid();
+      lic.machine_id := p_machine_id;
+    end if;
 
-  if lic.machine_id <> p_machine_id then
-    return json_build_object('ok', false, 'reason', 'OTRO_EQUIPO');
+    if lic.machine_id <> p_machine_id then
+      return json_build_object('ok', false, 'reason', 'OTRO_EQUIPO');
+    end if;
   end if;
 
   if lic.status <> 'activa' then
@@ -117,3 +125,36 @@ grant  execute on function public.license_status() to authenticated;
 alter table public.licenses alter column plan set default 'completo';
 update public.licenses set plan = 'completo'
  where plan in ('mensual', 'trimestral', 'anual');
+
+-- ════════════════════════════════════════════════════════════════════════
+-- Cuenta propietaria con equipos ilimitados (jun-2026)
+-- ════════════════════════════════════════════════════════════════════════
+update public.licenses set unlimited_devices = true
+ where user_id = (select id from auth.users
+                   where email = 'camilovitola1205@gmail.com');
+
+-- ════════════════════════════════════════════════════════════════════════
+-- Perfil por cuenta (nombre, foto, tema, módulo) — guardado en el servidor
+-- para que siga al usuario entre equipos. Cada quien solo ve/edita el suyo.
+-- ════════════════════════════════════════════════════════════════════════
+create table if not exists public.profiles (
+  user_id    uuid primary key references auth.users(id) on delete cascade,
+  nombre     text,
+  foto       text,
+  tema       text,
+  modulo     text,
+  updated_at timestamptz not null default now()
+);
+alter table public.profiles enable row level security;
+
+drop policy if exists "perfil_select" on public.profiles;
+create policy "perfil_select" on public.profiles
+  for select using (auth.uid() = user_id);
+
+drop policy if exists "perfil_insert" on public.profiles;
+create policy "perfil_insert" on public.profiles
+  for insert with check (auth.uid() = user_id);
+
+drop policy if exists "perfil_update" on public.profiles;
+create policy "perfil_update" on public.profiles
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);

@@ -280,3 +280,56 @@ def verificar(sesion):
     if st != 200 or not isinstance(j, dict):
         raise LicenciaError(f"El servidor de licencias respondió {st}.")
     return j
+
+
+# ── Perfil de la cuenta (nombre, foto, tema, módulo) en el servidor ──────────
+_PERFIL_COLS = ("nombre", "foto", "tema", "modulo")
+
+def _uid(sesion):
+    """user id (sub) del JWT, sin verificar firma."""
+    try:
+        p = (sesion or {}).get("access_token", "").split(".")[1]
+        p += "=" * (-len(p) % 4)
+        return json.loads(base64.urlsafe_b64decode(p)).get("sub", "")
+    except Exception:
+        return ""
+
+def get_profile(sesion):
+    """Lee el perfil de la cuenta desde el servidor. {} si no hay o falla."""
+    try:
+        req = urllib.request.Request(
+            SUPABASE_URL.rstrip("/")
+            + "/rest/v1/profiles?select=nombre,foto,tema,modulo",
+            headers={"apikey": SUPABASE_ANON_KEY,
+                     "Authorization": f"Bearer {sesion['access_token']}"},
+            method="GET")
+        with urllib.request.urlopen(req, timeout=TIMEOUT, context=_ssl_ctx()) as r:
+            arr = json.loads(r.read().decode() or "[]")
+        if isinstance(arr, list) and arr:
+            return {k: v for k, v in arr[0].items() if v is not None}
+    except Exception:
+        pass
+    return {}
+
+def set_profile(sesion, **kw):
+    """Crea/actualiza (upsert) el perfil de la cuenta en el servidor."""
+    uid = _uid(sesion)
+    if not uid:
+        return False
+    row = {"user_id": uid}
+    for k in _PERFIL_COLS:
+        if k in kw:
+            row[k] = kw[k]
+    try:
+        req = urllib.request.Request(
+            SUPABASE_URL.rstrip("/") + "/rest/v1/profiles?on_conflict=user_id",
+            data=json.dumps(row).encode(),
+            headers={"apikey": SUPABASE_ANON_KEY,
+                     "Authorization": f"Bearer {sesion['access_token']}",
+                     "Content-Type": "application/json",
+                     "Prefer": "resolution=merge-duplicates,return=minimal"},
+            method="POST")
+        with urllib.request.urlopen(req, timeout=TIMEOUT, context=_ssl_ctx()) as r:
+            return r.status in (200, 201, 204)
+    except Exception:
+        return False
