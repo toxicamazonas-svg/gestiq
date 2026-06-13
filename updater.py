@@ -202,11 +202,22 @@ def aplicar_y_reiniciar():
             with open(bat, "w", encoding="ascii", errors="ignore") as f:
                 f.write(
                     "@echo off\r\n"
-                    ":loop\r\n"
-                    f'tasklist /FI "PID eq {pid}" 2>NUL | find "{pid}" >NUL\r\n'
-                    "if not errorlevel 1 ( ping -n 2 127.0.0.1 >NUL & goto loop )\r\n"
-                    f'move /Y "{nuevo}" "{objetivo}" >NUL\r\n'
+                    "rem 1) esperar a que se cierren TODOS los procesos de la app\r\n"
+                    ":waitproc\r\n"
+                    'tasklist /FI "IMAGENAME eq Gestiq.exe" 2>NUL | find /I "Gestiq.exe" >NUL\r\n'
+                    "if not errorlevel 1 ( ping -n 2 127.0.0.1 >NUL & goto waitproc )\r\n"
+                    "rem 2) reintentar el reemplazo hasta que el .exe se libere\r\n"
+                    "set /a intentos=0\r\n"
+                    ":trymove\r\n"
+                    f'move /Y "{nuevo}" "{objetivo}" >NUL 2>&1\r\n'
+                    "if not errorlevel 1 goto relanzar\r\n"
+                    "set /a intentos+=1\r\n"
+                    "ping -n 2 127.0.0.1 >NUL\r\n"
+                    "if %intentos% lss 60 goto trymove\r\n"
+                    "goto limpiar\r\n"
+                    ":relanzar\r\n"
                     f'start "" "{objetivo}"\r\n'
+                    ":limpiar\r\n"
                     '(goto) 2>nul & del "%~f0"\r\n'
                 )
             DETACHED = 0x00000008

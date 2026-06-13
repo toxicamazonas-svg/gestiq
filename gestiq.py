@@ -92,7 +92,7 @@ REGISTRO_URL = "https://toxicamazonas-svg.github.io/gestiq/cuenta.html"
 try:
     from version import VERSION as APP_VERSION
 except Exception:
-    APP_VERSION = "1.0.11"
+    APP_VERSION = "1.0.12"
 
 # ── Preferencias locales por cuenta (nombre, foto, tema, módulo inicial) ─────
 PREFS_PATH = os.path.join(os.path.expanduser("~"), ".gestiq_prefs.json")
