@@ -15,6 +15,8 @@ import openpyxl
 
 import gestiq as G                # ← toda la lógica existente
 licencia = G.licencia
+from version import VERSION
+import updater
 
 
 # ── Sustitutos sin Tk ────────────────────────────────────────────────────────
@@ -362,6 +364,9 @@ class Api:
         webbrowser.open(G.REGISTRO_URL)
         return {"ok": True}
 
+    def version(self):
+        return VERSION
+
 
 # ── Arranque ─────────────────────────────────────────────────────────────────
 def _ruta(nombre):
@@ -386,8 +391,19 @@ def main():
             if t._running:
                 try: t._do_stop()
                 except Exception: pass
+        try: updater.aplicar_y_reiniciar()   # si hay update listo, reemplaza y relanza
+        except Exception: pass
         return True
     api.win.events.closing += al_cerrar
+
+    # Auto-actualización silenciosa en segundo plano.
+    def _aviso_update(tag):
+        api.js_toast("ok", "Actualización",
+                     f"Gestiq {tag} se instalará al cerrar la aplicación.")
+    try:
+        updater.iniciar_en_segundo_plano(on_listo=_aviso_update)
+    except Exception:
+        pass
 
     try:
         webview.start(private_mode=False)   # conserva el tema elegido

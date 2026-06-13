@@ -88,6 +88,12 @@ except Exception:
 # Web de registro y pago
 REGISTRO_URL = "https://toxicamazonas-svg.github.io/gestiq/cuenta.html"
 
+# Versión (fuente única en version.py)
+try:
+    from version import VERSION as APP_VERSION
+except Exception:
+    APP_VERSION = "1.0.10"
+
 # ── Preferencias locales por cuenta (nombre, foto, tema, módulo inicial) ─────
 PREFS_PATH = os.path.join(os.path.expanduser("~"), ".gestiq_prefs.json")
 
@@ -224,7 +230,7 @@ def style_cell(cell, fill=None, white=False):
 #  Ventana principal
 # ════════════════════════════════════════════════════════════════════════════
 class App(ctk.CTk):
-    VERSION = "v1.0.9"
+    VERSION = "v" + APP_VERSION
 
     def __init__(self):
         super().__init__()
