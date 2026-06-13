@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Gestiq v2.3 — interfaz liquid glass (pywebview).
+Gestiq v1.0.9 — interfaz liquid glass (pywebview).
 La lógica del bot, Excel y licencias se reutiliza COMPLETA de gestiq.py;
 este archivo solo cambia la capa visual (HTML/CSS real con blur).
 Requiere: pip install pywebview  (además de lo de siempre)

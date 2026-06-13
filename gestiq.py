@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Gestiq v2.1
+Gestiq v1.0.9
 Automatización IMAGINE + GUARDIAN — Interfaz moderna
 Requiere: pip install playwright openpyxl customtkinter
           playwright install chromium
@@ -224,7 +224,7 @@ def style_cell(cell, fill=None, white=False):
 #  Ventana principal
 # ════════════════════════════════════════════════════════════════════════════
 class App(ctk.CTk):
-    VERSION = "v2.1"
+    VERSION = "v1.0.9"
 
     def __init__(self):
         super().__init__()
