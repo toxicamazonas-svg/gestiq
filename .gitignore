@@ -5,3 +5,7 @@ dist/
 *.zip
 *.xlsx
 .DS_Store
+*.pyc
+ms-playwright/
+*.command
+ESTADO_DEL_PROYECTO.md

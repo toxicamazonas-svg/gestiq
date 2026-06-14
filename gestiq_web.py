@@ -111,6 +111,10 @@ class Api:
     def __init__(self):
         self.win = None
         self._lic = None
+        self._pend2fa = None
+        self._cid2fa = ""
+        self._enrol = None
+        self._enrolCid = ""
         self._plan = "completo"
         self._hb_on = False
         self.tabs = {"imagine": ImagineWeb(self), "guardian": GuardianWeb(self)}
@@ -153,27 +157,84 @@ class Api:
         except Exception as e:
             return self._lic_dict("bloqueado", msg=str(e), reintentar=True)
 
+    def _tras_sesion(self, s, em=""):
+        r = licencia.verificar(s)
+        if r.get("ok"):
+            return self._lic_ok(s, r)
+        licencia.cerrar_sesion()
+        return self._lic_dict("bloqueado", msg=licencia.motivo(r))
+
     def login(self, em, pw):
         try:
             s = licencia.login(em, pw)
-            r = licencia.verificar(s)
-            if r.get("ok"):
-                return self._lic_ok(s, r)
-            licencia.cerrar_sesion()
-            return self._lic_dict("bloqueado", msg=licencia.motivo(r))
+            if s.get("requiere_2fa"):
+                self._pend2fa = s
+                return self._lic_dict("2fa", email=s.get("email", ""))
+            return self._tras_sesion(s, em)
         except Exception as e:
             return self._lic_dict("login", msg=str(e), email=em)
 
+    def reto_2fa(self):
+        """Prepara el reto del 2do factor; en SMS, envía el código."""
+        try:
+            s = self._pend2fa or {}
+            self._cid2fa = licencia.challenge_2fa(s.get("access_token", ""), s.get("factor_id", ""))
+            return {"ok": True, "tipo": s.get("factor_tipo", "totp")}
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def verificar_2fa(self, code):
+        try:
+            s = self._pend2fa or {}
+            ses = licencia.verify_2fa(s.get("access_token", ""), s.get("factor_id", ""),
+                                      self._cid2fa, code)
+            self._pend2fa = None; self._cid2fa = ""
+            return self._tras_sesion(ses)
+        except Exception as e:
+            return self._lic_dict("2fa", msg=str(e),
+                                  email=(self._pend2fa or {}).get("email", ""),
+                                  tipo=(self._pend2fa or {}).get("factor_tipo", "totp"))
+
     def login_google(self):
         try:
-            s = licencia.login_google()
-            r = licencia.verificar(s)
-            if r.get("ok"):
-                return self._lic_ok(s, r)
-            licencia.cerrar_sesion()
-            return self._lic_dict("bloqueado", msg=licencia.motivo(r))
+            return self._tras_sesion(licencia.login_google())
         except Exception as e:
             return self._lic_dict("login", msg=str(e))
+
+    def activar_2fa(self, tipo="totp", phone=""):
+        try:
+            d = licencia.enrolar_2fa(self._lic, tipo, phone)
+            self._enrol = {"factor_id": d["factor_id"], "tipo": tipo}
+            self._enrolCid = ""
+            return {"ok": True, **d}
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def enviar_codigo_2fa(self):
+        """Para SMS en alta: envía el código al teléfono del factor recién creado."""
+        try:
+            self._enrolCid = licencia.challenge_2fa(self._lic.get("access_token", ""),
+                                                    (self._enrol or {}).get("factor_id", ""))
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def confirmar_2fa(self, code):
+        try:
+            fid = (self._enrol or {}).get("factor_id", "")
+            cid = self._enrolCid or licencia.challenge_2fa(self._lic.get("access_token", ""), fid)
+            self._lic = licencia.verify_2fa(self._lic.get("access_token", ""), fid, cid, code)
+            self._enrol = None; self._enrolCid = ""
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def desactivar_2fa(self, factor_id):
+        try:
+            licencia.desactivar_2fa(self._lic, factor_id)
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
 
     def _lic_ok(self, s, r):
         self._lic = s

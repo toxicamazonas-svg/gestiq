@@ -167,16 +167,91 @@ def _sesion_desde(j):
     return s
 
 
-def login(email, password):
-    """Inicia sesión. Devuelve la sesión o lanza LicenciaError."""
+def login(identificador, password):
+    """Inicia sesión con correo o nombre de usuario. Devuelve la sesión o lanza LicenciaError."""
+    ident = (identificador or "").strip()
+    email = ident
+    if "@" not in ident:                       # es nombre de usuario → resolver a correo
+        st, j = _post("/rest/v1/rpc/email_de_usuario", {"p_username": ident})
+        if st == 200 and isinstance(j, str) and j:
+            email = j
+        else:
+            raise LicenciaError("Usuario o contraseña incorrectos.")
     st, j = _post("/auth/v1/token?grant_type=password",
-                  {"email": email.strip(), "password": password})
+                  {"email": email, "password": password})
     if st == 200:
-        return _sesion_desde(j)
+        s = _sesion_desde(j)
+        fid, tipo = _factor_2fa(j)
+        if fid:
+            s["requiere_2fa"] = True
+            s["factor_id"] = fid
+            s["factor_tipo"] = tipo
+        return s
     msg = (j or {}).get("error_description") or (j or {}).get("msg") or ""
     if "Invalid login" in msg or st in (400, 401):
-        raise LicenciaError("Correo o contraseña incorrectos.")
+        raise LicenciaError("Usuario o contraseña incorrectos.")
     raise LicenciaError(f"No se pudo iniciar sesión ({st}). {msg}".strip())
+
+
+# ── 2FA / MFA (app TOTP o SMS) ───────────────────────────────────────────────
+def _factor_2fa(j):
+    """(id, tipo) del primer factor verificado (prioriza 'totp', luego 'phone')."""
+    factores = ((j or {}).get("user") or {}).get("factors") or []
+    for tipo in ("totp", "phone"):
+        for f in factores:
+            if f.get("factor_type") == tipo and f.get("status") == "verified":
+                return f.get("id", ""), tipo
+    return "", ""
+
+
+def challenge_2fa(token, factor_id):
+    """Crea un reto. En un factor de SMS, ESTO envía el código. Devuelve challenge_id."""
+    st, j = _post(f"/auth/v1/factors/{factor_id}/challenge", {}, token=token)
+    if st == 200 and (j or {}).get("id"):
+        return j["id"]
+    msg = (j or {}).get("error_description") or (j or {}).get("msg") or ""
+    raise LicenciaError(f"No se pudo enviar el código ({st}). {msg}".strip())
+
+
+def verify_2fa(token, factor_id, challenge_id, code):
+    """Verifica el código del segundo factor; devuelve la sesión elevada (AAL2)."""
+    st, j = _post(f"/auth/v1/factors/{factor_id}/verify",
+                  {"challenge_id": challenge_id, "code": str(code).strip()}, token=token)
+    if st == 200:
+        return _sesion_desde(j)
+    if st in (400, 401, 422):
+        raise LicenciaError("Código incorrecto o vencido.")
+    msg = (j or {}).get("error_description") or (j or {}).get("msg") or ""
+    raise LicenciaError(f"No se pudo verificar ({st}). {msg}".strip())
+
+
+def enrolar_2fa(sesion, tipo="totp", phone=""):
+    """Crea un factor nuevo ('totp' o 'phone'). Devuelve {factor_id, tipo, qr, secret, uri}."""
+    body = {"factor_type": tipo,
+            "friendly_name": "IPRECON" if tipo == "totp" else "IPRECON SMS"}
+    if tipo == "phone":
+        body["phone"] = phone
+    st, j = _post("/auth/v1/factors", body, token=sesion.get("access_token", ""))
+    if st in (200, 201) and (j or {}).get("id"):
+        t = j.get("totp") or {}
+        return {"factor_id": j["id"], "tipo": tipo, "qr": t.get("qr_code", ""),
+                "secret": t.get("secret", ""), "uri": t.get("uri", "")}
+    msg = (j or {}).get("error_description") or (j or {}).get("msg") or ""
+    raise LicenciaError(f"No se pudo activar la verificación en dos pasos ({st}). {msg}".strip())
+
+
+def desactivar_2fa(sesion, factor_id):
+    """Elimina un factor 2FA."""
+    req = urllib.request.Request(
+        SUPABASE_URL.rstrip("/") + f"/auth/v1/factors/{factor_id}",
+        headers={"apikey": SUPABASE_ANON_KEY,
+                 "Authorization": f"Bearer {sesion.get('access_token', '')}"},
+        method="DELETE")
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT, context=_ssl_ctx()) as r:
+            return r.status in (200, 204)
+    except Exception as e:
+        raise LicenciaError("No se pudo desactivar la verificación en dos pasos.") from e
 
 
 def login_google(timeout=180):
@@ -256,6 +331,7 @@ def ultimo_email():
 # ── Verificación de licencia (servidor decide todo) ──────────────────────────
 MOTIVOS = {
     "SIN_LICENCIA": "Tu cuenta no tiene una licencia asignada.\nEscríbenos para activarla.",
+    "REQUIERE_2FA": "Debes completar la verificación en dos pasos.\nVuelve a iniciar sesión.",
     "OTRO_EQUIPO":  "Tu licencia ya está activada en otro equipo.\nEscríbenos si cambiaste de computador.",
     "SUSPENDIDA":   "Tu licencia está suspendida.\nEscríbenos para reactivarla.",
     "VENCIDA":      "Tu suscripción venció.\nRenueva para seguir usando Gestiq.",

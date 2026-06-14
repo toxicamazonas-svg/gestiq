@@ -118,7 +118,7 @@
   .navbtn.off { opacity:.38; cursor:not-allowed; }
   .navbtn .ic { font-size:16px; }
   .navbtn img.nlogo {
-    height:20px; width:auto; max-width:28px; object-fit:contain;
+    height:20px; width:24px; object-fit:contain; flex:0 0 24px;
     filter: drop-shadow(0 1px 2px rgba(0,0,0,.35));
   }
   .navbtn { justify-content:flex-start; text-align:left; }
@@ -166,7 +166,7 @@
     border-radius:99px; padding:0 22px; height:42px; font-size:.86rem;
     background: linear-gradient(180deg, var(--accent2), var(--accent));
     box-shadow:0 6px 18px rgba(0,176,80,.3), inset 0 1px 0 rgba(255,255,255,.28);
-    transition: transform .45s var(--spring), box-shadow .3s, filter .25s, opacity .25s;
+    transition: transform .45s var(--spring), box-shadow .55s ease-out, filter .55s ease-out, opacity .25s;
   }
   .btn:hover:not(:disabled) { transform:translateY(-2px) scale(1.015); filter:brightness(1.06); box-shadow:0 10px 26px rgba(0,176,80,.42), inset 0 1px 0 rgba(255,255,255,.3); }
   .btn:active:not(:disabled) { transform:scale(.96); }
@@ -656,7 +656,7 @@ function pintarLic(e) {
                             : "Inicia sesión en Gestiq";
     caja.innerHTML = `${icono}<h1>${titulo}</h1>
       <p class="sub">Usa la cuenta que recibiste con tu suscripción</p>
-      <input id="licEmail" type="email" placeholder="Correo" value="${e.email || ""}">
+      <input id="licEmail" type="text" placeholder="Correo o usuario" value="${e.email || ""}">
       <input id="licPass" type="password" placeholder="Contraseña">
       <button class="btn" id="licEntrar" onclick="entrar()">Entrar</button>
       <button class="btn gris" id="licGoogle" onclick="entrarGoogle()" style="width:100%;margin-top:8px">G&nbsp; Entrar con Google</button>
@@ -665,6 +665,17 @@ function pintarLic(e) {
       <button class="btn enlace" style="color:var(--accent2)" onclick="pywebview.api.abrir_web()">¿No tienes cuenta? Regístrate y paga aquí</button>
       <p class="sub" style="margin-top:10px">Se requiere conexión a internet</p>`;
     $("licPass").addEventListener("keydown", ev => { if (ev.key === "Enter") entrar(); });
+  } else if (e.modo === "2fa") {
+    caja.innerHTML = `<div class="logo" style="width:54px;height:54px;font-size:24px;border-radius:16px;margin:0 auto">🔐</div>
+      <h1>Verificación en dos pasos</h1>
+      <p class="sub">Escribe el código de tu app de autenticación</p>
+      <input id="lic2fa" inputmode="numeric" maxlength="6" placeholder="000000" style="text-align:center;letter-spacing:8px;font-size:1.3rem">
+      <button class="btn" id="lic2faBtn" onclick="verificar2fa()">Verificar</button>
+      <div class="msg" id="licMsg">${e.msg || ""}</div>
+      <button class="btn enlace" onclick="cambiarCuenta()">Cancelar</button>`;
+    $("lic2fa").addEventListener("keydown", ev => { if (ev.key === "Enter") verificar2fa(); });
+    setTimeout(() => { const x = $("lic2fa"); if (x) x.focus(); }, 60);
+    pywebview.api.reto_2fa().then(r => { if (!r.ok) $("licMsg").textContent = r.msg || "No se pudo preparar la verificación."; });
   } else {
     caja.innerHTML = `<div class="icono">🔒</div><h1>Acceso bloqueado</h1>
       <p class="sub">${e.msg || "Licencia no válida."}</p>
@@ -675,7 +686,7 @@ function pintarLic(e) {
 async function entrar() {
   const em = $("licEmail").value.trim(), pw = $("licPass").value;
   const M = $("licMsg");
-  if (!em || !pw) { M.textContent = "Escribe tu correo y contraseña."; return; }
+  if (!em || !pw) { M.textContent = "Escribe tu correo o usuario y contraseña."; return; }
   $("licEntrar").disabled = true; $("licEntrar").textContent = "Verificando…"; M.textContent = "";
   const r = await pywebview.api.login(em, pw);
   if (r.modo !== "ok") {
@@ -683,6 +694,18 @@ async function entrar() {
     $("licEntrar").disabled = false; $("licEntrar").textContent = "Entrar";
     M.textContent = r.msg || "No se pudo iniciar sesión.";
     return;
+  }
+  pintarLic(r);
+}
+async function verificar2fa() {
+  const code = $("lic2fa").value.trim(), M = $("licMsg");
+  if (code.length < 6) { M.textContent = "Escribe el código de 6 dígitos."; return; }
+  $("lic2faBtn").disabled = true; $("lic2faBtn").textContent = "Verificando…"; M.textContent = "";
+  const r = await pywebview.api.verificar_2fa(code);
+  if (r.modo !== "ok") {
+    if (r.modo === "bloqueado") { pintarLic(r); return; }
+    $("lic2faBtn").disabled = false; $("lic2faBtn").textContent = "Verificar";
+    M.textContent = r.msg || "Código incorrecto."; return;
   }
   pintarLic(r);
 }

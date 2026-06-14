@@ -158,3 +158,7 @@ create policy "perfil_insert" on public.profiles
 drop policy if exists "perfil_update" on public.profiles;
 create policy "perfil_update" on public.profiles
   for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Permiso de uso de la tabla para usuarios autenticados.
+-- SIN esto, PostgREST devuelve 403 aunque las policies RLS existan.
+grant select, insert, update on public.profiles to authenticated;

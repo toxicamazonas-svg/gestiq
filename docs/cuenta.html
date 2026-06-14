@@ -205,13 +205,19 @@
   }
   .tab.act { color: #fff; }
   label { display: block; font-size: .8rem; color: var(--muted); margin: 13px 0 6px; }
-  input {
+  input, select {
     width: 100%; padding: 12px 14px; border-radius: 12px; font-size: .95rem;
     background: rgba(255,255,255,.05); color: var(--text);
     border: 1px solid var(--glass-brd); outline: none;
     transition: border-color .25s, box-shadow .25s, background .25s;
   }
-  input:focus { border-color: rgba(0,199,91,.6); background: rgba(255,255,255,.07); box-shadow: 0 0 0 4px rgba(0,176,80,.15); }
+  input:focus, select:focus { border-color: rgba(0,199,91,.6); background-color: rgba(255,255,255,.07); box-shadow: 0 0 0 4px rgba(0,176,80,.15); }
+  select {
+    -webkit-appearance: none; appearance: none; cursor: pointer; padding-right: 38px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2390a4ae' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 14px center;
+  }
+  select option { background: #161b22; color: var(--text); }
   .msg { margin-top: 13px; font-size: .85rem; text-align: center; min-height: 1.2em; }
   .msg.err { color: var(--err); }
   .msg.ok  { color: var(--accent); }
@@ -358,7 +364,30 @@
         <button class="tab act" id="tabReg" onclick="modo('reg')">Crear cuenta</button>
         <button class="tab" id="tabLog" onclick="modo('log')">Ya tengo cuenta</button>
       </div>
-      <label>Correo electrónico</label>
+      <div id="regCampos">
+        <div style="display:flex; gap:10px">
+          <div style="flex:1"><label>Nombre</label><input id="nombre" placeholder="Tu nombre" autocomplete="given-name"></div>
+          <div style="flex:1"><label>Apellido</label><input id="apellido" placeholder="Tu apellido" autocomplete="family-name"></div>
+        </div>
+        <label>Nombre de usuario</label>
+        <input id="username" placeholder="ej. juanperez" autocomplete="username" oninput="chkUser()">
+        <small id="userHint" style="display:block; min-height:15px; font-size:.8rem; margin:-2px 0 4px"></small>
+        <label>Celular</label>
+        <input id="celular" type="tel" placeholder="ej. 3001234567" autocomplete="tel">
+        <div style="display:flex; gap:10px">
+          <div style="flex:1"><label>Tipo de documento</label>
+            <select id="tipoDoc">
+              <option value="CC">Cédula de ciudadanía</option>
+              <option value="CE">Cédula de extranjería</option>
+              <option value="TI">Tarjeta de identidad</option>
+              <option value="PA">Pasaporte</option>
+              <option value="NIT">NIT</option>
+            </select>
+          </div>
+          <div style="flex:1"><label>Número de documento</label><input id="documento" placeholder="Número" autocomplete="off"></div>
+        </div>
+      </div>
+      <label id="lblEmail">Correo electrónico</label>
       <input id="email" type="email" placeholder="tucorreo@ejemplo.com" autocomplete="email">
       <label>Contraseña</label>
       <input id="pass" type="password" placeholder="Mínimo 6 caracteres" autocomplete="new-password">
@@ -388,6 +417,17 @@
       <div class="msg" id="msgReset"></div>
     </div>
 
+    <!-- ════ Verificación en dos pasos (al entrar) ════ -->
+    <div class="card" id="card2fa" style="display:none">
+      <p style="font-weight:700; margin-bottom:4px">Verificación en dos pasos</p>
+      <p class="correo">Escribe el código de tu app de autenticación.</p>
+      <label>Código</label>
+      <input id="otp" inputmode="numeric" maxlength="6" placeholder="000000" style="text-align:center; letter-spacing:8px">
+      <button class="cta" id="btnOtp" onclick="verif2fa()">Verificar</button>
+      <button class="link" onclick="cancel2fa()">Cancelar</button>
+      <div class="msg" id="msg2fa"></div>
+    </div>
+
     <!-- ════ Con sesión: estado ════ -->
     <div class="card" id="cardCuenta" style="display:none">
       <p class="correo" id="correo"></p>
@@ -400,6 +440,17 @@
       </div>
       <div class="estado" id="rowVence" style="display:none">
         <span>Activa hasta</span><span id="vence"></span>
+      </div>
+      <div class="estado">
+        <span>Verificación en dos pasos</span>
+        <button class="link" id="btn2fa" onclick="toggle2fa()" style="display:none">Activar</button>
+      </div>
+      <div id="enrolApp" style="display:none; text-align:center; margin-top:6px">
+        <div id="qr2fa" style="margin:10px auto; display:flex; justify-content:center"></div>
+        <p class="correo">Escanéalo con Google Authenticator o Authy y escribe el código que genera.</p>
+        <input id="otpEnrol" inputmode="numeric" maxlength="6" placeholder="000000" style="text-align:center; letter-spacing:8px">
+        <button class="cta" onclick="confirmarApp()">Confirmar</button>
+        <div class="msg" id="msgEnrol"></div>
       </div>
       <p class="nota-pago">Para pagar o renovar, elige un plan arriba.<br>Tarjeta, PSE o Nequi · Procesado por Wompi</p>
       <div class="msg" id="msgPago"></div>
@@ -499,7 +550,11 @@ function modo(m) {
   $("tabReg").classList.toggle("act", esReg);
   $("tabLog").classList.toggle("act", !esReg);
   $("reConfirma").style.display = esReg ? "" : "none";
+  $("regCampos").style.display = esReg ? "" : "none";
   $("linkOlvide").style.display = esReg ? "none" : "";
+  $("lblEmail").textContent = esReg ? "Correo electrónico" : "Correo o usuario";
+  $("email").type = esReg ? "email" : "text";
+  $("email").placeholder = esReg ? "tucorreo@ejemplo.com" : "correo o nombre de usuario";
   $("btnAuth").textContent = esReg ? "Crear cuenta" : "Entrar";
   $("msgAuth").textContent = "";
   glide($("tabs"));
@@ -522,25 +577,183 @@ function guardar(j) {
   localStorage.setItem("gestiq_ses", JSON.stringify(ses));
 }
 
+let _uTmr = null;
+function chkUser() {
+  const h = $("userHint"), v = $("username").value.trim().toLowerCase();
+  clearTimeout(_uTmr);
+  if (!/^[a-z0-9._-]{3,20}$/.test(v)) {
+    h.style.color = "#b91c1c";
+    h.textContent = v ? "3-20 caracteres: letras, números, . _ -" : "";
+    return;
+  }
+  h.style.color = "#888"; h.textContent = "Comprobando…";
+  _uTmr = setTimeout(async () => {
+    const r = await api("/rest/v1/rpc/username_disponible", { p_username: v });
+    if (r.j === true) { h.style.color = "#15803d"; h.textContent = "✓ Disponible"; }
+    else { h.style.color = "#b91c1c"; h.textContent = "Ya está tomado"; }
+  }, 450);
+}
+
+async function guardarPerfil(token, uid, d) {
+  try {
+    const r = await fetch(SUPABASE_URL + "/rest/v1/profiles", {
+      method: "POST",
+      headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + token,
+                 "Content-Type": "application/json",
+                 "Prefer": "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({ user_id: uid, ...d })
+    });
+    return r.status < 300;
+  } catch (e) { return false; }
+}
+
 async function enviar() {
   const em = $("email").value.trim(), pw = $("pass").value;
   const M = $("msgAuth"); M.className = "msg err"; M.textContent = "";
-  if (!em || pw.length < 6) { M.textContent = "Escribe tu correo y una contraseña de mínimo 6 caracteres."; return; }
-  if (esReg && pw !== $("pass2").value) { M.textContent = "Las contraseñas no coinciden."; return; }
+
+  if (esReg) {
+    const nombre = $("nombre").value.trim(), apellido = $("apellido").value.trim();
+    const username = $("username").value.trim().toLowerCase();
+    const celular = $("celular").value.trim(), documento = $("documento").value.trim();
+    const tipo_doc = $("tipoDoc").value;
+    if (!nombre || !apellido || !celular || !documento) { M.textContent = "Completa todos los campos."; return; }
+    if (!/^[a-z0-9._-]{3,20}$/.test(username)) { M.textContent = "El usuario debe tener 3-20 caracteres: letras, números, punto, guion o guion bajo."; return; }
+    if (!em || pw.length < 6) { M.textContent = "Escribe tu correo y una contraseña de mínimo 6 caracteres."; return; }
+    if (pw !== $("pass2").value) { M.textContent = "Las contraseñas no coinciden."; return; }
+    $("btnAuth").disabled = true;
+    const u = await api("/rest/v1/rpc/username_disponible", { p_username: username });
+    if (u.j !== true) { $("btnAuth").disabled = false; M.textContent = "Ese nombre de usuario ya está tomado."; return; }
+    const { st, j } = await api("/auth/v1/signup",
+      { email: em, password: pw, data: { nombre, apellido, username, celular, tipo_doc, documento } });
+    if (st === 200 && j && j.access_token) {
+      const okp = await guardarPerfil(j.access_token, j.user.id, { nombre, apellido, username, celular, tipo_doc, documento });
+      $("btnAuth").disabled = false;
+      if (!okp) { M.textContent = "Cuenta creada, pero no se pudo guardar el perfil (¿usuario repetido?). Intenta con otro usuario."; return; }
+      guardar(j); pintar();
+      const p = sessionStorage.getItem("gestiq_plan");
+      if (p) { sessionStorage.removeItem("gestiq_plan"); pagar(p); }
+      return;
+    }
+    $("btnAuth").disabled = false;
+    const e = (j && (j.msg || j.error_description || (j.error && j.error.message))) || "";
+    if (/already|registered/i.test(e)) M.textContent = "Ese correo ya tiene cuenta — usa «Ya tengo cuenta».";
+    else M.textContent = e || ("No se pudo (" + st + "). Intenta de nuevo.");
+    return;
+  }
+
+  // ─── Entrar (con correo o nombre de usuario) ───
+  if (!em || pw.length < 6) { M.textContent = "Escribe tu correo o usuario y una contraseña de mínimo 6 caracteres."; return; }
   $("btnAuth").disabled = true;
-  const path = esReg ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
-  const { st, j } = await api(path, { email: em, password: pw });
+  let correo = em;
+  if (!em.includes("@")) {
+    const ru = await api("/rest/v1/rpc/email_de_usuario", { p_username: em.toLowerCase() });
+    if (ru.st === 200 && typeof ru.j === "string" && ru.j) correo = ru.j;
+    else { $("btnAuth").disabled = false; M.textContent = "Usuario o contraseña incorrectos."; return; }
+  }
+  const { st, j } = await api("/auth/v1/token?grant_type=password", { email: correo, password: pw });
   $("btnAuth").disabled = false;
   if (st === 200 && j && j.access_token) {
+    const f2 = factor2fa(j.user);
+    if (f2.fid) { pedir2fa(j, f2.fid, f2.tipo); return; }
     guardar(j); pintar();
     const p = sessionStorage.getItem("gestiq_plan");
     if (p) { sessionStorage.removeItem("gestiq_plan"); pagar(p); }
     return;
   }
   const e = (j && (j.msg || j.error_description || (j.error && j.error.message))) || "";
-  if (/already|registered/i.test(e)) M.textContent = "Ese correo ya tiene cuenta — usa «Ya tengo cuenta».";
-  else if (/invalid login/i.test(e))  M.textContent = "Correo o contraseña incorrectos.";
+  if (/invalid login/i.test(e)) M.textContent = "Correo o contraseña incorrectos.";
   else M.textContent = e || ("No se pudo (" + st + "). Intenta de nuevo.");
+}
+
+/* ════ Verificación en dos pasos (app o SMS) ════ */
+function factor2fa(user) {
+  for (const f of ((user && user.factors) || []))
+    if (f.factor_type === "totp" && f.status === "verified") return { fid: f.id, tipo: "totp" };
+  return { fid: "", tipo: "" };
+}
+
+async function apiGet(path) {
+  const r = await fetch(SUPABASE_URL + path, {
+    headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + ses.access }
+  });
+  let j = null; try { j = await r.json(); } catch (e) {}
+  return { st: r.status, j };
+}
+
+let _p2fa = null;
+async function pedir2fa(j, fid, tipo) {
+  _p2fa = { token: j.access_token, fid, tipo, cid: "" };
+  $("cardAuth").style.display = "none";
+  $("card2fa").style.display = "";
+  $("msg2fa").className = "msg"; $("msg2fa").textContent = ""; $("otp").value = "";
+  $("card2fa").scrollIntoView({ behavior: "smooth", block: "center" });
+  setTimeout(() => $("otp").focus(), 300);
+}
+function cancel2fa() {
+  _p2fa = null; $("card2fa").style.display = "none"; $("cardAuth").style.display = ""; modo("log");
+}
+async function verif2fa() {
+  const code = $("otp").value.trim(), M = $("msg2fa"); M.className = "msg err";
+  if (code.length < 6) { M.textContent = "Escribe el código de 6 dígitos."; return; }
+  $("btnOtp").disabled = true;
+  let cid = _p2fa.cid;
+  if (!cid) {
+    const ch = await api("/auth/v1/factors/" + _p2fa.fid + "/challenge", {}, _p2fa.token);
+    if (ch.st !== 200 || !ch.j || !ch.j.id) { $("btnOtp").disabled = false; M.textContent = "No se pudo iniciar la verificación."; return; }
+    cid = ch.j.id;
+  }
+  const vr = await api("/auth/v1/factors/" + _p2fa.fid + "/verify", { challenge_id: cid, code }, _p2fa.token);
+  $("btnOtp").disabled = false;
+  if (vr.st === 200 && vr.j && vr.j.access_token) {
+    guardar(vr.j); _p2fa = null;
+    $("card2fa").style.display = "none"; pintar();
+    const p = sessionStorage.getItem("gestiq_plan");
+    if (p) { sessionStorage.removeItem("gestiq_plan"); pagar(p); }
+    return;
+  }
+  M.textContent = "Código incorrecto o vencido.";
+}
+
+let _has2fa = false, _fid2fa = "", _enrolFid = "", _enrolCid = "";
+async function cargar2fa() {
+  const b = $("btn2fa"); _has2fa = false; _fid2fa = "";
+  try {
+    const r = await apiGet("/auth/v1/user");
+    for (const f of ((r.j && r.j.factors) || []))
+      if (f.factor_type === "totp" && f.status === "verified") { _has2fa = true; _fid2fa = f.id; }
+  } catch (e) {}
+  b.textContent = _has2fa ? "Desactivar" : "Activar"; b.style.display = "";
+  $("enrolApp").style.display = "none";
+}
+async function toggle2fa() {
+  if (_has2fa) {
+    if (!confirm("¿Desactivar la verificación en dos pasos?")) return;
+    await fetch(SUPABASE_URL + "/auth/v1/factors/" + _fid2fa, {
+      method: "DELETE", headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + ses.access }
+    });
+    cargar2fa(); return;
+  }
+  activarApp();
+}
+async function activarApp() {
+  const r = await api("/auth/v1/factors", { factor_type: "totp", friendly_name: "IPRECON" }, ses.access);
+  if (r.st >= 300 || !r.j || !r.j.id) { alert("No se pudo iniciar la activación."); return; }
+  _enrolFid = r.j.id; _enrolCid = "";
+  const t = r.j.totp || {}, qr = $("qr2fa");
+  if (t.qr_code && t.qr_code.trim().indexOf("<svg") === 0) qr.innerHTML = t.qr_code;
+  else if (t.qr_code) qr.innerHTML = '<img alt="QR" style="width:180px;height:180px" src="' + t.qr_code + '">';
+  else qr.textContent = t.secret ? ("Clave: " + t.secret) : "";
+  $("msgEnrol").textContent = ""; $("otpEnrol").value = "";
+  $("enrolApp").style.display = "";
+}
+async function confirmarApp() {
+  const code = $("otpEnrol").value.trim(), M = $("msgEnrol"); M.className = "msg err";
+  if (code.length < 6) { M.textContent = "Escribe el código de 6 dígitos."; return; }
+  const ch = await api("/auth/v1/factors/" + _enrolFid + "/challenge", {}, ses.access);
+  if (ch.st !== 200 || !ch.j || !ch.j.id) { M.textContent = "No se pudo confirmar."; return; }
+  const vr = await api("/auth/v1/factors/" + _enrolFid + "/verify", { challenge_id: ch.j.id, code }, ses.access);
+  if (vr.st === 200 && vr.j && vr.j.access_token) { guardar(vr.j); M.className = "msg ok"; M.textContent = "✓ Verificación activada."; cargar2fa(); return; }
+  M.textContent = "Código incorrecto o vencido.";
 }
 
 async function refrescar() {
@@ -564,8 +777,9 @@ async function pintar() {
     glide($("tabs"));
     return;
   }
-  $("cardAuth").style.display = "none"; $("cardCuenta").style.display = "";
+  $("cardAuth").style.display = "none"; $("card2fa").style.display = "none"; $("cardCuenta").style.display = "";
   $("correo").textContent = "👤 " + ses.email;
+  cargar2fa();
   const e = await estado();
   const chip = $("chip");
   const planTxt = e && e.plan && NOMBRES[e.plan] ? NOMBRES[e.plan] : null;
