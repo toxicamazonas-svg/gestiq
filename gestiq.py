@@ -226,6 +226,39 @@ def style_cell(cell, fill=None, white=False):
     cell.alignment = AL_CELL
 
 
+def recortar_hoja(ws):
+    """Elimina columnas/filas 'fantasma' (formato sin datos) que Excel muestra
+    como espacio en blanco infinito hacia la derecha/abajo, y reajusta la
+    dimensión y el autofiltro al rango con datos reales."""
+    from openpyxl.utils import get_column_letter, column_index_from_string
+
+    last_col = last_row = 0
+    for (r, c), cell in ws._cells.items():
+        if cell.value not in (None, ""):
+            if c > last_col: last_col = c
+            if r > last_row: last_row = r
+    if last_col == 0:               # hoja sin datos: no tocar
+        return
+    # borra celdas que solo tienen formato fuera del rango real
+    for coord in [co for co in list(ws._cells)
+                  if co[1] > last_col or co[0] > last_row]:
+        del ws._cells[coord]
+    # quita anchos/estilos de columnas y filas más allá de lo usado
+    for key in [k for k in list(ws.column_dimensions)
+                if column_index_from_string(k) > last_col]:
+        del ws.column_dimensions[key]
+    for key in [k for k in list(ws.row_dimensions) if k > last_row]:
+        del ws.row_dimensions[key]
+    ws._current_row = last_row
+    # acota el autofiltro si se pasaba del rango (conserva su fila de inicio)
+    ref = ws.auto_filter.ref
+    if ref and ":" in ref:
+        ini, fin = ref.split(":")
+        m = re.match(r"([A-Za-z]+)(\d+)", fin)
+        if m and column_index_from_string(m.group(1)) > last_col:
+            ws.auto_filter.ref = f"{ini}:{get_column_letter(last_col)}{m.group(2)}"
+
+
 # ════════════════════════════════════════════════════════════════════════════
 #  Ventana principal
 # ════════════════════════════════════════════════════════════════════════════

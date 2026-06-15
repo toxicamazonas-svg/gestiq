@@ -305,6 +305,8 @@ class Api:
         if not sel: return None
         p = sel[0] if isinstance(sel, (list, tuple)) else sel
         try:
+            for ws in tab.wb.worksheets:
+                G.recortar_hoja(ws)
             tab.wb.save(p)
             self.log(tab, f"Excel guardado: {os.path.basename(p)}", "ok")
             return {"ruta": p}
