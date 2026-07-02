@@ -23,6 +23,7 @@ import json
 import ssl
 import shutil
 import zipfile
+import hashlib
 import tempfile
 import threading
 import subprocess
@@ -90,9 +91,26 @@ def _get(url, binario=False):
 def _release_latest():
     data = json.loads(_get(API_LATEST).decode("utf-8", "replace"))
     tag = (data.get("tag_name") or "").strip()
-    assets = {a.get("name"): a.get("browser_download_url")
-              for a in (data.get("assets") or [])}
-    return tag, assets
+    assets, digests = {}, {}
+    for a in (data.get("assets") or []):
+        assets[a.get("name")] = a.get("browser_download_url")
+        # GitHub publica el sha256 del asset como "digest": "sha256:<hex>"
+        digests[a.get("name")] = str(a.get("digest") or "")
+    notas = (data.get("body") or "").strip()      # changelog de la release
+    return tag, assets, digests, notas
+
+
+def _sha256_ok(path, digest):
+    """True si el archivo coincide con el digest ('sha256:<hex>') o si el
+    release no trae digest (no se puede verificar → no bloquear el update)."""
+    d = (digest or "").strip().lower()
+    if not d.startswith("sha256:"):
+        return True
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for bloque in iter(lambda: f.read(1 << 20), b""):
+            h.update(bloque)
+    return h.hexdigest() == d.split(":", 1)[1].strip()
 
 
 def _descargar(url, dst):
@@ -111,16 +129,17 @@ def _buscar_y_descargar(on_listo=None):
         return
     plat, _objetivo, base = info
     try:
-        tag, assets = _release_latest()
+        tag, assets, digests, _notas = _release_latest()
     except Exception:
         return
     if not tag or not _es_mas_nueva(tag, VERSION):
         return
 
     if plat == "win":
-        url = assets.get(ASSET_WIN_LIGERO) or assets.get(ASSET_WIN_FULL)
+        nombre = ASSET_WIN_LIGERO if assets.get(ASSET_WIN_LIGERO) else ASSET_WIN_FULL
     else:
-        url = assets.get(ASSET_MAC)
+        nombre = ASSET_MAC
+    url = assets.get(nombre)
     if not url:
         return
 
@@ -130,6 +149,8 @@ def _buscar_y_descargar(on_listo=None):
         os.makedirs(work, exist_ok=True)
         zpath = os.path.join(work, "paquete.zip")
         _descargar(url, zpath)
+        if not _sha256_ok(zpath, digests.get(nombre)):
+            raise RuntimeError("SHA256 del update no coincide — descarga descartada")
 
         if plat == "win":
             with zipfile.ZipFile(zpath) as z:
@@ -174,6 +195,23 @@ def iniciar_en_segundo_plano(on_listo=None):
     """Lanza la comprobación de actualizaciones sin bloquear el arranque."""
     threading.Thread(target=_buscar_y_descargar, args=(on_listo,),
                      daemon=True).start()
+
+
+def comprobar_ahora():
+    """Comprobación manual (botón de la UI). Devuelve un dict para mostrar:
+    {hay, tag, actual, notas, listo, dev} o {error}. Si hay una versión nueva
+    y aún no se había descargado, arranca la descarga en segundo plano."""
+    try:
+        tag, _assets, _digests, notas = _release_latest()
+    except Exception as e:
+        return {"error": f"No se pudo consultar las versiones ({str(e)[:60]})"}
+    hay = bool(tag) and _es_mas_nueva(tag, VERSION)
+    r = {"hay": hay, "tag": tag, "actual": VERSION,
+         "notas": notas[:4000], "listo": hay_update_listo(),
+         "dev": not getattr(sys, "frozen", False)}
+    if hay and not _ESTADO.get("listo") and getattr(sys, "frozen", False):
+        iniciar_en_segundo_plano()                 # empieza a bajarla ya
+    return r
 
 
 def hay_update_listo():
@@ -233,9 +271,16 @@ def aplicar_y_reiniciar():
                     "#!/bin/bash\n"
                     f"while kill -0 {pid} 2>/dev/null; do sleep 1; done\n"
                     "sleep 1\n"
-                    f'rm -rf "{objetivo}"\n'
-                    f'mv "{nuevo}" "{objetivo}"\n'
-                    f'xattr -cr "{objetivo}"\n'
+                    # Respaldo y reemplazo con vuelta atrás: si el mv falla,
+                    # se restaura la app anterior (nunca dejar al usuario sin app).
+                    f'rm -rf "{objetivo}.old"\n'
+                    f'mv "{objetivo}" "{objetivo}.old"\n'
+                    f'if mv "{nuevo}" "{objetivo}"; then\n'
+                    f'  xattr -cr "{objetivo}"\n'
+                    f'  rm -rf "{objetivo}.old"\n'
+                    "else\n"
+                    f'  mv "{objetivo}.old" "{objetivo}"\n'
+                    "fi\n"
                     f'open "{objetivo}"\n'
                     'rm -f "$0"\n'
                 )

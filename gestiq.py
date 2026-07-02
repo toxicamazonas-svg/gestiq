@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Gestiq v1.0.9
-Automatización IMAGINE + GUARDIAN — Interfaz moderna
-Requiere: pip install playwright openpyxl customtkinter
-          playwright install chromium
+Gestiq — UI VIEJA (CustomTkinter). ARCHIVO OBSOLETO desde el 02-jul-2026.
+
+⚠ La lógica viva del bot (IMAGINE + GUARDIAN, Excel, prefs) se movió a
+  bots.py y la app real es gestiq_web.py. NO editar lógica aquí: nada de
+  este archivo se usa en la app distribuida. Se conserva solo como
+  referencia de la interfaz CustomTkinter antigua.
 """
 
 import sys, os, re, io, json, base64, threading, asyncio, webbrowser
@@ -92,7 +94,7 @@ REGISTRO_URL = "https://toxicamazonas-svg.github.io/gestiq/cuenta.html"
 try:
     from version import VERSION as APP_VERSION
 except Exception:
-    APP_VERSION = "1.0.12"
+    APP_VERSION = "1.0.16"
 
 # ── Preferencias locales por cuenta (nombre, foto, tema, módulo inicial) ─────
 PREFS_PATH = os.path.join(os.path.expanduser("~"), ".gestiq_prefs.json")
@@ -224,39 +226,6 @@ def style_cell(cell, fill=None, white=False):
     cell.font      = Font(name='Calibri', size=7, bold=True,
                           color='FFFFFF' if white else '000000')
     cell.alignment = AL_CELL
-
-
-def recortar_hoja(ws):
-    """Elimina columnas/filas 'fantasma' (formato sin datos) que Excel muestra
-    como espacio en blanco infinito hacia la derecha/abajo, y reajusta la
-    dimensión y el autofiltro al rango con datos reales."""
-    from openpyxl.utils import get_column_letter, column_index_from_string
-
-    last_col = last_row = 0
-    for (r, c), cell in ws._cells.items():
-        if cell.value not in (None, ""):
-            if c > last_col: last_col = c
-            if r > last_row: last_row = r
-    if last_col == 0:               # hoja sin datos: no tocar
-        return
-    # borra celdas que solo tienen formato fuera del rango real
-    for coord in [co for co in list(ws._cells)
-                  if co[1] > last_col or co[0] > last_row]:
-        del ws._cells[coord]
-    # quita anchos/estilos de columnas y filas más allá de lo usado
-    for key in [k for k in list(ws.column_dimensions)
-                if column_index_from_string(k) > last_col]:
-        del ws.column_dimensions[key]
-    for key in [k for k in list(ws.row_dimensions) if k > last_row]:
-        del ws.row_dimensions[key]
-    ws._current_row = last_row
-    # acota el autofiltro si se pasaba del rango (conserva su fila de inicio)
-    ref = ws.auto_filter.ref
-    if ref and ":" in ref:
-        ini, fin = ref.split(":")
-        m = re.match(r"([A-Za-z]+)(\d+)", fin)
-        if m and column_index_from_string(m.group(1)) > last_col:
-            ws.auto_filter.ref = f"{ini}:{get_column_letter(last_col)}{m.group(2)}"
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -1476,11 +1445,13 @@ class BaseTab(ctk.CTkFrame):
         loop = asyncio.new_event_loop()
         self._loop = loop
         asyncio.set_event_loop(loop)
+        self._autosave_dirty = False
+        self._autosave_avisado = False
         self._task = loop.create_task(self._automate())
         try:
             loop.run_until_complete(self._task)
         except asyncio.CancelledError:
-            pass                                    # detenido por el usuario
+            self._autosave()                        # detenido: lo consultado queda en disco
         except Exception as e:
             self.app.log(self, f"Error inesperado: {e}", "error")
         finally:
@@ -1572,6 +1543,29 @@ class BaseTab(ctk.CTkFrame):
                 "No se pudo guardar",
                 "Revisa que el archivo de destino no esté abierto en Excel.")
             self.app.log(self, f"Error al guardar: {e}", "error")
+
+    # ── Autoguardado (protege lo consultado ante cierres, fallos o crashes) ──
+    AUTOSAVE_CADA = 10          # guarda cada N filas procesadas
+
+    def _autosave_path(self):
+        base, _ = os.path.splitext(self.xl_path or "resultado")
+        mod = str(getattr(self, "key", "") or self.__class__.__name__).upper()
+        return f"{base} (autoguardado {mod}).xlsx"
+
+    def _autosave(self):
+        """Copia de respaldo junto al archivo original. Solo escribe si hay
+        resultados nuevos desde el último autoguardado."""
+        if not self.wb or not getattr(self, "_autosave_dirty", False):
+            return
+        try:
+            p = self._autosave_path()
+            self.wb.save(p)
+            self._autosave_dirty = False
+            if not getattr(self, "_autosave_avisado", False):
+                self._autosave_avisado = True
+                self.app.log(self, f"Autoguardado activo: {os.path.basename(p)}", "info")
+        except Exception as e:
+            self.app.log(self, f"No se pudo autoguardar: {e}", "warn")
 
     # ── Diálogo de login ─────────────────────────────────────────────────────
     def _ask_ready(self, event, system_name):
@@ -1686,7 +1680,9 @@ class ImagineTab(BaseTab):
             ov = str(ws.cell(row=row[0].row, column=out_c).value).strip().upper() \
                  if ws.cell(row=row[0].row, column=out_c).value else ""
             if cv and cv.upper() not in ("NONE", "NAN"):
-                if not ov or ov == "PENDIENTE":
+                # Vacía, PENDIENTE o ERROR (los errores de red se reintentan
+                # en la siguiente corrida sin borrar la celda a mano).
+                if not ov or ov == "PENDIENTE" or ov.startswith("ERROR"):
                     jobs.append((row[0].row, cv))
 
         total = len(jobs)
@@ -1732,6 +1728,7 @@ class ImagineTab(BaseTab):
 
                 cell = ws.cell(row=rn, column=out_c)
                 cell.value = result
+                self._autosave_dirty = True
                 rl = result.lower()
                 if any(x in rl for x in ["autorizado", "aprobado", "pre factura"]):
                     style_cell(cell, F_GREEN)
@@ -1745,7 +1742,10 @@ class ImagineTab(BaseTab):
 
                 self.app.log(self, f"  {caso}: {result[:80]}",
                              "error" if "no encontrado" in rl else "ok")
+                if (i + 1) % self.AUTOSAVE_CADA == 0:
+                    self._autosave()
 
+            self._autosave()
             await browser.close()
 
         if not_found:
@@ -1885,7 +1885,8 @@ class GuardianTab(BaseTab):
             ov = str(ws.cell(row=row[0].row, column=out_c).value).strip().upper() \
                  if ws.cell(row=row[0].row, column=out_c).value else ""
             if cv and sv and cv.upper() not in ("NONE", "NAN", ""):
-                if not ov or "PENDIENTE" in ov:
+                # Vacía, PENDIENTE o ERROR (se reintentan en la siguiente corrida)
+                if not ov or "PENDIENTE" in ov or ov.startswith("ERROR"):
                     jobs.append((row[0].row, cv, sv))
 
         total = len(jobs)
@@ -1945,6 +1946,7 @@ class GuardianTab(BaseTab):
 
                 cell = ws.cell(row=rn, column=out_c)
                 cell.value = result
+                self._autosave_dirty = True
                 ru = result.upper()
                 style_cell(cell)
                 if "RECHAZADO" in ru:
@@ -1961,7 +1963,10 @@ class GuardianTab(BaseTab):
                     lvl = "orange"   # estado desconocido → visible, nunca gris
 
                 self.app.log(self, f"{cron}/{sec}: {result}", lvl)
+                if (i + 1) % self.AUTOSAVE_CADA == 0:
+                    self._autosave()
 
+            self._autosave()
             await browser.close()
 
         if no_resultado:

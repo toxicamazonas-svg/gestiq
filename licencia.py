@@ -108,20 +108,51 @@ def _kr():
 def _fallback_path():
     return os.path.join(os.path.expanduser("~"), ".gestiq_sesion")
 
+def _ofusca(data: bytes) -> bytes:
+    """Ofuscación XOR con llave derivada del equipo (simétrica). No es
+    criptografía fuerte, pero el archivo deja de ser legible a simple vista
+    y no sirve copiado a otro computador (la llave depende del machine_id).
+    Solo se usa cuando no hay llavero del sistema (keyring)."""
+    key = hashlib.sha256(f"gestiq-sesion|{machine_id()}".encode()).digest()
+    out = bytearray()
+    ks = b""
+    for i, b in enumerate(data):
+        if i % 32 == 0:
+            ks = hashlib.sha256(key + (i // 32).to_bytes(4, "big")).digest()
+        out.append(b ^ ks[i % 32])
+    return bytes(out)
+
+def _fb_load():
+    """Lee el archivo de respaldo: formato nuevo 'GQ1' (ofuscado) o el viejo
+    base64 plano (se migra al nuevo en el siguiente guardado)."""
+    try:
+        raw = open(_fallback_path(), "rb").read()
+    except Exception:
+        return {}
+    try:
+        if raw.startswith(b"GQ1"):
+            return json.loads(_ofusca(raw[3:]))
+        return json.loads(base64.b64decode(raw))     # formato viejo
+    except Exception:
+        return {}
+
+def _fb_save(data):
+    try:
+        with open(_fallback_path(), "wb") as f:
+            f.write(b"GQ1" + _ofusca(json.dumps(data).encode()))
+        try: os.chmod(_fallback_path(), 0o600)
+        except Exception: pass
+    except Exception:
+        pass
+
 def _guardar(clave, valor):
     kr = _kr()
     if kr:
         try: kr.set_password(_SERVICIO, clave, valor); return
         except Exception: pass
-    try:
-        data = {}
-        if os.path.exists(_fallback_path()):
-            data = json.loads(base64.b64decode(open(_fallback_path(), "rb").read()))
-        data[clave] = valor
-        with open(_fallback_path(), "wb") as f:
-            f.write(base64.b64encode(json.dumps(data).encode()))
-    except Exception:
-        pass
+    data = _fb_load()
+    data[clave] = valor
+    _fb_save(data)
 
 def _leer(clave):
     kr = _kr()
@@ -131,26 +162,17 @@ def _leer(clave):
             if v: return v
         except Exception:
             pass
-    try:
-        data = json.loads(base64.b64decode(open(_fallback_path(), "rb").read()))
-        return data.get(clave)
-    except Exception:
-        return None
+    return _fb_load().get(clave)
 
 def _borrar(clave):
     kr = _kr()
     if kr:
         try: kr.delete_password(_SERVICIO, clave)
         except Exception: pass
-    try:
-        p = _fallback_path()
-        if os.path.exists(p):
-            data = json.loads(base64.b64decode(open(p, "rb").read()))
-            data.pop(clave, None)
-            with open(p, "wb") as f:
-                f.write(base64.b64encode(json.dumps(data).encode()))
-    except Exception:
-        pass
+    if os.path.exists(_fallback_path()):
+        data = _fb_load()
+        data.pop(clave, None)
+        _fb_save(data)
 
 
 # ── Sesión ────────────────────────────────────────────────────────────────────

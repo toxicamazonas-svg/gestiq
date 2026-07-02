@@ -9,3 +9,4 @@ dist/
 ms-playwright/
 *.command
 ESTADO_DEL_PROYECTO.md
+_respaldo_rediseno/

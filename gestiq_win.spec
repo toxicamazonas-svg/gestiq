@@ -3,7 +3,7 @@
 from PyInstaller.utils.hooks import collect_all
 
 datas, binaries, hiddenimports = [], [], []
-for pkg in ("playwright", "customtkinter", "keyring", "webview"):
+for pkg in ("playwright", "keyring", "webview"):   # customtkinter ya no se usa (UI vieja)
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b

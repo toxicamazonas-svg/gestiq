@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Gestiq v1.0.9 — interfaz liquid glass (pywebview).
-La lógica del bot, Excel y licencias se reutiliza COMPLETA de gestiq.py;
-este archivo solo cambia la capa visual (HTML/CSS real con blur).
+Gestiq — interfaz liquid glass (pywebview).
+La lógica del bot, Excel y licencias vive en bots.py (sin Tk);
+este archivo es solo la capa visual (HTML/CSS real con blur).
 Requiere: pip install pywebview  (además de lo de siempre)
 """
 
@@ -13,7 +13,7 @@ from datetime import datetime
 import webview                    # pywebview
 import openpyxl
 
-import gestiq as G                # ← toda la lógica existente
+import bots as G                  # ← toda la lógica del bot (sin Tk)
 licencia = G.licencia
 from version import VERSION
 import updater
@@ -27,13 +27,6 @@ class FakeVar:
     def set(self, v): self.v = v
 
 
-class Dummy:
-    """Imita cualquier widget: acepta .configure(...) y poco más."""
-    def configure(self, **k): pass
-    def winfo_exists(self): return False
-    def set(self, *a): pass
-
-
 class MsgShim:
     """Sustituye tkinter.messagebox dentro de gestiq → toasts en la web."""
     def __init__(self, api): self.api = api
@@ -43,10 +36,10 @@ class MsgShim:
     def askyesno(self, t, m, **k):    return True
 
 
-# ── Pestañas "headless": lógica de gestiq.py sin widgets ────────────────────
+# ── Pestañas "headless": bots de bots.py + puente a la UI web ────────────────
 class TabWeb:
-    """Mixin que reemplaza la parte Tk de BaseTab. El MRO hace que estos
-    métodos tapen a los de BaseTab; _automate y los helpers se heredan."""
+    """Mixin de UI web sobre BaseBot. El MRO hace que estos métodos tapen a
+    los hooks de BaseBot; _automate, _runner y los helpers se heredan."""
 
     def init_comun(self, api, key):
         self.api = api
@@ -58,13 +51,9 @@ class TabWeb:
         self._running = False
         self._loop = self._task = self._thread = None
         self._login_ev = None
-        self._login_dlg = None
         self.v_sheet = FakeVar()
-        # widgets que tocan los métodos heredados (_do_stop, etc.)
-        self.btn_start = self.btn_stop = self.btn_download = Dummy()
-        self.lbl_prog = self.lbl_pct = self.prog = self.cb_sheet = Dummy()
 
-    # gestiq llama self.after(0, fn) desde el hilo del bot: aquí no hay loop
+    # el bot llama self.after(0, fn) desde su hilo: aquí no hay loop
     # de Tk, así que se ejecuta directo (evaluate_js es thread-safe).
     def after(self, _ms, fn=None, *a):
         if fn is None: return
@@ -85,20 +74,22 @@ class TabWeb:
     def _on_finish(self):
         self._set_running(False)
         self.api.js(f"G.fin({json.dumps(self.key)},{json.dumps(bool(self._stop))})")
+        if getattr(self, "resumen", None):
+            self.api.js(f"G.resumen({json.dumps(self.key)},{json.dumps(self.resumen)})")
 
     def _ask_ready(self, event, system_name):
         self._login_ev = event
         self.api.js(f"G.pedirLogin({json.dumps(self.key)},{json.dumps(system_name)})")
 
 
-class ImagineWeb(TabWeb, G.ImagineTab):
+class ImagineWeb(TabWeb, G.ImagineBot):
     def __init__(self, api):
         self.init_comun(api, "imagine")
         self.v_caso = FakeVar("CASO")
         self.v_out  = FakeVar("IMAGINE")
 
 
-class GuardianWeb(TabWeb, G.GuardianTab):
+class GuardianWeb(TabWeb, G.GuardianBot):
     def __init__(self, api):
         self.init_comun(api, "guardian")
         self.v_cron = FakeVar("CRONOGRAMA")
@@ -259,18 +250,30 @@ class Api:
         if self._hb_on: return
         self._hb_on = True
         def bucle():
+            fallos_red = 0
             while True:
                 time.sleep(600)
-                if self._lic is None: continue
+                if self._lic is None:
+                    fallos_red = 0
+                    continue
                 try:
                     r = licencia.verificar(self._lic)
-                    if r.get("ok"):
-                        self._plan = str(r.get("plan") or self._plan).lower()
-                        self.js(f"G.plan({json.dumps(self._plan)})")
-                    else:
-                        self._bloquear(licencia.motivo(r))
                 except Exception as e:
-                    self._bloquear(str(e), True)
+                    # Fallo de red transitorio: no expulsar al usuario ni matar
+                    # una corrida por un blip de internet. Solo bloquea tras 3
+                    # fallos seguidos (~30 min sin poder validar).
+                    fallos_red += 1
+                    if fallos_red >= 3:
+                        fallos_red = 0
+                        self._bloquear(str(e), True)
+                    continue
+                fallos_red = 0
+                if r.get("ok"):
+                    self._plan = str(r.get("plan") or self._plan).lower()
+                    self.js(f"G.plan({json.dumps(self._plan)})")
+                else:
+                    # El servidor SÍ respondió y dijo que no → bloqueo inmediato
+                    self._bloquear(licencia.motivo(r))
         threading.Thread(target=bucle, daemon=True).start()
 
     def _bloquear(self, msg, reintentar=False):
@@ -283,7 +286,7 @@ class Api:
     def elegir_archivo(self, m):
         tab = self.tabs[m]
         sel = self.win.create_file_dialog(
-            webview.OPEN_DIALOG, file_types=("Excel (*.xlsx;*.xls)", "Todos (*.*)"))
+            webview.OPEN_DIALOG, file_types=("Excel (*.xlsx)", "Todos (*.*)"))  # .xls no: openpyxl no lo lee
         if not sel: return None
         p = sel[0] if isinstance(sel, (list, tuple)) else sel
         try:
@@ -305,8 +308,80 @@ class Api:
         if not sel: return None
         p = sel[0] if isinstance(sel, (list, tuple)) else sel
         try:
+            self.log(tab, "Guardando… (limpiando formato del libro)", "info")
+            # Al guardar: (1) mostrar la cuadrícula —la plantilla la trae oculta, por
+            # eso las celdas vacías se veían blancas— y (2) quitar el relleno blanco de
+            # todo lo vacío, para que la zona vacía se vea con la rejilla gris en vez
+            # de bloques blancos "infinitos". El blanco puede venir de 3 sitios: celdas
+            # sueltas, FILAS enteras y COLUMNAS enteras con formato (estos dos últimos
+            # pintan hasta el infinito y no aparecen en iter_rows, por eso antes seguía
+            # saliendo blanco). NO se oculta ni se recorta nada (datos y colores quedan
+            # igual). Va inline aquí (no en gestiq.py) porque este script es el
+            # __main__ y no usa caché .pyc: nunca corre una versión vieja.
+            from openpyxl.styles import PatternFill
+            _sin_relleno = PatternFill(fill_type=None)
+
+            def _fill_blanco(fill):
+                # ¿Es un relleno sólido blanco? (rgb, tema 0 o índice de paleta blanco)
+                if not fill or fill.patternType != "solid":
+                    return False
+                fg = fill.fgColor
+                rgb = getattr(fg, "rgb", None)
+                if isinstance(rgb, str) and rgb[-6:].upper() == "FFFFFF":
+                    return True
+                if getattr(fg, "theme", None) == 0:
+                    return True
+                if getattr(fg, "indexed", None) in (1, 9):
+                    return True
+                return False
+
+            from openpyxl.styles import Border
+            _sin_borde = Border()
+
+            def _tiene_borde(c):
+                b = c.border
+                if not b: return False
+                return any(getattr(getattr(b, lado, None), "style", None)
+                           for lado in ("left", "right", "top", "bottom"))
+
             for ws in tab.wb.worksheets:
-                G.recortar_hoja(ws)
+                ws.sheet_view.showGridLines = True
+                # Última columna con datos reales (límite derecho de la tabla)
+                ult_col = 0
+                for fila in ws.iter_rows():
+                    for c in fila:
+                        if c.value not in (None, "") and str(c.value).strip() != "":
+                            ult_col = max(ult_col, c.column)
+                # Límites de merges precalculados (comparación numérica: mucho
+                # más rápido que buscar coordenadas texto por cada celda)
+                mrg = [(r.min_row, r.min_col, r.max_row, r.max_col)
+                       for r in ws.merged_cells.ranges]
+                # 1) Celdas vacías (o solo espacios) con relleno blanco
+                #    + bordes sueltos fuera de la tabla (a la derecha), p. ej. una
+                #    celda con bordes olvidada en la plantilla. No se tocan bordes
+                #    dentro de la tabla, ni merges, ni celdas con relleno de color.
+                for fila in ws.iter_rows():
+                    for celda in fila:
+                        v = celda.value
+                        vacia = v is None or (isinstance(v, str) and v.strip() == "")
+                        if not vacia:
+                            continue
+                        if _fill_blanco(celda.fill):
+                            celda.fill = _sin_relleno
+                        if celda.column > ult_col and _tiene_borde(celda):
+                            con_color = (celda.fill and celda.fill.patternType == "solid"
+                                         and not _fill_blanco(celda.fill))
+                            en_merge = any(a <= celda.row <= c and b <= celda.column <= d
+                                           for a, b, c, d in mrg)
+                            if not con_color and not en_merge:
+                                celda.border = _sin_borde
+                # 2) Formato de FILA/COLUMNA entera con relleno blanco (el "infinito")
+                for dim in list(ws.row_dimensions.values()) + list(ws.column_dimensions.values()):
+                    try:
+                        if _fill_blanco(dim.fill):
+                            dim.fill = _sin_relleno
+                    except Exception:
+                        pass
             tab.wb.save(p)
             self.log(tab, f"Excel guardado: {os.path.basename(p)}", "ok")
             return {"ruta": p}
@@ -319,7 +394,12 @@ class Api:
         tab = self.tabs[m]
         if tab._running: return {"error": "Ya hay una consulta en curso."}
         if not tab.xl_path: return {"error": "Primero selecciona un archivo Excel."}
-        if not (cfg or {}).get("hoja"): return {"error": "Selecciona la hoja del Excel."}
+        # OJO: NO hacer strip() al nombre — hay hojas reales con espacio al final
+        # (p.ej. "SIPAB 10 NOV ") y el nombre debe coincidir EXACTO.
+        hojas = [str(h) for h in ((cfg or {}).get("hojas") or []) if str(h).strip()]
+        if not hojas and (cfg or {}).get("hoja"):
+            hojas = [str(cfg["hoja"])]
+        if not hojas: return {"error": "Selecciona al menos una hoja del Excel."}
         if not G.HAVE_PW: return {"error": "Playwright no está instalado en este equipo."}
 
         # Licencia obligatoria antes de cada ejecución (igual que lic_check_run)
@@ -346,9 +426,10 @@ class Api:
             self.log(tab, f"Error al recargar archivo: {e}", "error")
             return {"error": "El archivo no se pudo recargar. Ciérralo en Excel e inténtalo de nuevo."}
 
-        tab.v_sheet.set(cfg["hoja"])
+        tab.hojas = hojas
+        tab.v_sheet.set(hojas[0])
         for k, v in (cfg or {}).items():
-            if k == "hoja" or not str(v).strip(): continue
+            if k in ("hoja", "hojas") or not str(v).strip(): continue
             var = getattr(tab, "v_" + k, None)
             if var: var.set(str(v).strip())
 
@@ -454,6 +535,27 @@ class Api:
     def version(self):
         return VERSION
 
+    def exportar_log(self, m, texto):
+        """Guarda el registro de actividad del módulo como .txt."""
+        sel = self.win.create_file_dialog(
+            webview.SAVE_DIALOG, file_types=("Texto (*.txt)",),
+            save_filename=f"registro_{m}_{datetime.now().strftime('%Y%m%d_%H%M')}.txt")
+        if not sel: return None
+        p = sel[0] if isinstance(sel, (list, tuple)) else sel
+        try:
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(str(texto or ""))
+            return {"ruta": p}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def buscar_update(self):
+        """Comprobación manual de actualizaciones (clic en la versión)."""
+        try:
+            return updater.comprobar_ahora()
+        except Exception as e:
+            return {"error": f"No se pudo comprobar: {e}"}
+
 
 # ── Arranque ─────────────────────────────────────────────────────────────────
 def _ruta(nombre):
@@ -461,12 +563,39 @@ def _ruta(nombre):
     return os.path.join(base, nombre)
 
 
+def _limpiar_cache_web():
+    """WKWebView (macOS) cachea la página y puede servir una UI VIEJA tras
+    actualizar (pasó con los logos y con la UI v1.0.17). Se limpia SOLO cuando
+    cambia la versión (ahí sí hay HTML nuevo que cargar); en los arranques
+    normales NO se toca nada, porque borrar la caché en cada inicio obliga a
+    WKWebView a reconstruirla y hace que la app tarde en abrir. Nunca toca
+    ~/Library/WebKit para conservar el localStorage (tema elegido)."""
+    if sys.platform != "darwin":
+        return
+    marca = os.path.expanduser("~/.gestiq_uiver")
+    try:
+        if os.path.exists(marca) and open(marca).read().strip() == str(VERSION):
+            return                              # misma versión → no limpiar (arranque rápido)
+    except Exception:
+        pass
+    import shutil
+    for bid in ("com.gestiq.app", "org.python.python", "Python"):
+        shutil.rmtree(os.path.expanduser(f"~/Library/Caches/{bid}"),
+                      ignore_errors=True)
+    try:
+        with open(marca, "w") as f:
+            f.write(str(VERSION))
+    except Exception:
+        pass
+
+
 def main():
+    _limpiar_cache_web()
     api = Api()
     kwargs = dict(
         title="Gestiq", url=_ruta("gestiq_ui.html"), js_api=api,
         width=1140, height=780, min_size=(960, 660),
-        background_color="#15151F",
+        background_color="#101018",
     )
     try:
         api.win = webview.create_window(vibrancy=True, **kwargs)   # blur nativo (solo macOS)
@@ -474,9 +603,21 @@ def main():
         api.win = webview.create_window(**kwargs)
 
     def al_cerrar():
-        for t in api.tabs.values():
-            if t._running:
-                try: t._do_stop()
+        corriendo = [t for t in api.tabs.values() if t._running]
+        if corriendo:
+            seguir = True
+            try:
+                seguir = bool(api.win.create_confirmation_dialog(
+                    "Consulta en curso",
+                    "Hay una consulta en curso; si cierras ahora se detendrá.\n"
+                    "Lo ya consultado queda en el archivo de autoguardado.\n\n"
+                    "¿Cerrar de todas formas?"))
+            except Exception:
+                pass                       # sin soporte de diálogo → cerrar como antes
+            if not seguir:
+                return False               # cancela el cierre
+            for t in corriendo:
+                try: t._do_stop()          # cancela la tarea → _runner autoguarda
                 except Exception: pass
         try: updater.aplicar_y_reiniciar()   # si hay update listo, reemplaza y relanza
         except Exception: pass
