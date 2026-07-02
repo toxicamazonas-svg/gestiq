@@ -7,7 +7,7 @@ este archivo es solo la capa visual (HTML/CSS real con blur).
 Requiere: pip install pywebview  (además de lo de siempre)
 """
 
-import os, sys, json, threading, time, webbrowser
+import os, sys, json, queue, threading, time, webbrowser
 from datetime import datetime
 
 import webview                    # pywebview
@@ -54,7 +54,8 @@ class TabWeb:
         self.v_sheet = FakeVar()
 
     # el bot llama self.after(0, fn) desde su hilo: aquí no hay loop
-    # de Tk, así que se ejecuta directo (evaluate_js es thread-safe).
+    # de Tk, así que se ejecuta directo (la UI se toca vía api.js(),
+    # que encola sin bloquear; ver Api._js_worker).
     def after(self, _ms, fn=None, *a):
         if fn is None: return
         try: fn(*a)
@@ -100,7 +101,8 @@ class GuardianWeb(TabWeb, G.GuardianBot):
 # ── API expuesta a JavaScript ────────────────────────────────────────────────
 class Api:
     def __init__(self):
-        self.win = None
+        self._win = None
+        self._closing = False               # cerrando: no tocar más la UI
         self._lic = None
         self._pend2fa = None
         self._cid2fa = ""
@@ -108,15 +110,31 @@ class Api:
         self._enrolCid = ""
         self._plan = "completo"
         self._hb_on = False
-        self.tabs = {"imagine": ImagineWeb(self), "guardian": GuardianWeb(self)}
+        self._tabs = {"imagine": ImagineWeb(self), "guardian": GuardianWeb(self)}
         G.messagebox = MsgShim(self)        # los messagebox del bot → toasts
+        self._js_q = queue.Queue()
+        threading.Thread(target=self._js_worker, daemon=True).start()
 
     # ── Puente Python → JS ──
+    # evaluate_js es BLOQUEANTE (espera la respuesta del WebView). Llamado en
+    # mal momento —p. ej. desde el cierre de la ventana en macOS (el log de
+    # _do_stop) o con la página aún sin cargar— se queda esperando para
+    # siempre y la app parece pegada. Por eso NADIE llama evaluate_js directo:
+    # js() encola y un único hilo de fondo (daemon) despacha; si ese hilo se
+    # queda esperando, no arrastra a nadie y muere con el proceso.
+    def _js_worker(self):
+        while True:
+            code = self._js_q.get()
+            if self._closing:
+                continue
+            try:
+                if self._win: self._win.evaluate_js(code)
+            except Exception:
+                pass
+
     def js(self, code):
-        try:
-            if self.win: self.win.evaluate_js(code)
-        except Exception:
-            pass
+        if not self._closing:
+            self._js_q.put(code)
 
     def js_toast(self, tipo, titulo, msg):
         self.js(f"G.toast({json.dumps(tipo)},{json.dumps(str(titulo))},{json.dumps(str(msg))})")
@@ -135,18 +153,26 @@ class Api:
         if licencia is None or not licencia.configurado():
             return self._lic_dict("bloqueado", msg="Error interno de licencias. "
                                   "Reinstala la aplicación o contacta soporte.")
-        try:
-            s = licencia.restaurar_sesion()
-            if s is None:
-                em = licencia.ultimo_email()
-                return self._lic_dict("login", email=em,
-                                      prefs=G._prefs_get(em))
-            r = licencia.verificar(s)
-            if r.get("ok"):
-                return self._lic_ok(s, r)
-            return self._lic_dict("bloqueado", msg=licencia.motivo(r))
-        except Exception as e:
-            return self._lic_dict("bloqueado", msg=str(e), reintentar=True)
+        err = ""
+        for intento in (1, 2):
+            # La 1ª petición puede pillar la red "fría" justo al arrancar
+            # (DNS/TLS aún dormidos): un fallo transitorio ya no muestra
+            # "Acceso bloqueado"; se reintenta solo una vez.
+            try:
+                s = licencia.restaurar_sesion()
+                if s is None:
+                    em = licencia.ultimo_email()
+                    return self._lic_dict("login", email=em,
+                                          prefs=G._prefs_get(em))
+                r = licencia.verificar(s)
+                if r.get("ok"):
+                    return self._lic_ok(s, r)
+                return self._lic_dict("bloqueado", msg=licencia.motivo(r))
+            except Exception as e:
+                err = str(e)
+                if intento == 1:
+                    time.sleep(1.2)
+        return self._lic_dict("bloqueado", msg=err, reintentar=True)
 
     def _tras_sesion(self, s, em=""):
         r = licencia.verificar(s)
@@ -237,7 +263,7 @@ class Api:
                               prefs=self._perfil())
 
     def salir(self):
-        for t in self.tabs.values():
+        for t in self._tabs.values():
             if t._running: t._do_stop()
         self._lic = None
         if licencia:
@@ -277,15 +303,15 @@ class Api:
         threading.Thread(target=bucle, daemon=True).start()
 
     def _bloquear(self, msg, reintentar=False):
-        for t in self.tabs.values():
+        for t in self._tabs.values():
             if t._running: t._do_stop()
         self._lic = None
         self.js(f"G.lic({json.dumps(self._lic_dict('bloqueado', msg=msg, reintentar=reintentar))})")
 
     # ── Archivo ──
     def elegir_archivo(self, m):
-        tab = self.tabs[m]
-        sel = self.win.create_file_dialog(
+        tab = self._tabs[m]
+        sel = self._win.create_file_dialog(
             webview.OPEN_DIALOG, file_types=("Excel (*.xlsx)", "Todos (*.*)"))  # .xls no: openpyxl no lo lee
         if not sel: return None
         p = sel[0] if isinstance(sel, (list, tuple)) else sel
@@ -300,9 +326,9 @@ class Api:
         return {"nombre": nombre, "hojas": wb.sheetnames}
 
     def guardar_copia(self, m):
-        tab = self.tabs[m]
+        tab = self._tabs[m]
         if not tab.wb: return {"error": "No hay resultados que guardar."}
-        sel = self.win.create_file_dialog(
+        sel = self._win.create_file_dialog(
             webview.SAVE_DIALOG, file_types=("Excel (*.xlsx)",),
             save_filename=f"resultado_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx")
         if not sel: return None
@@ -391,7 +417,7 @@ class Api:
 
     # ── Ejecución ──
     def iniciar(self, m, cfg):
-        tab = self.tabs[m]
+        tab = self._tabs[m]
         if tab._running: return {"error": "Ya hay una consulta en curso."}
         if not tab.xl_path: return {"error": "Primero selecciona un archivo Excel."}
         # OJO: NO hacer strip() al nombre — hay hojas reales con espacio al final
@@ -447,17 +473,17 @@ class Api:
         return {"ok": True}
 
     def detener(self, m):
-        tab = self.tabs[m]
+        tab = self._tabs[m]
         if tab._running: tab._do_stop()
         return {"ok": True}
 
     def continuar_login(self, m):
-        ev = self.tabs[m]._login_ev
+        ev = self._tabs[m]._login_ev
         if ev and not ev.is_set(): ev.set()
         return {"ok": True}
 
     def cancelar_login(self, m):
-        tab = self.tabs[m]
+        tab = self._tabs[m]
         tab._stop = True
         ev = tab._login_ev
         if ev and not ev.is_set(): ev.set()
@@ -508,7 +534,7 @@ class Api:
 
     def leer_foto(self):
         """Diálogo de imagen; devuelve base64 sin procesar (recorte en JS)."""
-        sel = self.win.create_file_dialog(
+        sel = self._win.create_file_dialog(
             webview.OPEN_DIALOG,
             file_types=("Imágenes (*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp)",))
         if not sel:
@@ -537,7 +563,7 @@ class Api:
 
     def exportar_log(self, m, texto):
         """Guarda el registro de actividad del módulo como .txt."""
-        sel = self.win.create_file_dialog(
+        sel = self._win.create_file_dialog(
             webview.SAVE_DIALOG, file_types=("Texto (*.txt)",),
             save_filename=f"registro_{m}_{datetime.now().strftime('%Y%m%d_%H%M')}.txt")
         if not sel: return None
@@ -589,7 +615,76 @@ def _limpiar_cache_web():
         pass
 
 
+_LOCK = None    # referencia viva al candado de instancia única (no cerrar)
+
+
+def _instancia_unica():
+    """True si esta es la única instancia de Gestiq. Dos procesos a la vez
+    pelean por el perfil del WebView (WebView2 lo bloquea en Windows) y la
+    segunda ventana queda congelada; mejor no abrirla. Al morir el proceso el
+    sistema libera el candado solo. Si el candado no se puede crear, se deja
+    pasar (nunca bloquear el arranque por esto)."""
+    global _LOCK
+    import tempfile
+    ruta = os.path.join(tempfile.gettempdir(), "gestiq_instancia.lock")
+    try:
+        f = open(ruta, "a+")
+    except Exception:
+        return True
+    try:
+        if sys.platform.startswith("win"):
+            import msvcrt
+            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except Exception:
+        try: f.close()
+        except Exception: pass
+        if sys.platform.startswith("win"):
+            try:                            # feedback: sin esto parecía "no abre"
+                import ctypes
+                ctypes.windll.user32.MessageBoxW(
+                    None, "Gestiq ya está abierto (revisa la barra de tareas).",
+                    "Gestiq", 0x50040)      # info + siempre visible + al frente
+            except Exception:
+                pass
+        return False                        # otra instancia tiene el candado
+    _LOCK = f
+    return True
+
+
+def _rematar(api, salir=os._exit):
+    """Último paso del cierre: espera (acotado) a que el autoguardado de las
+    corridas termine de escribir y MATA el proceso. Se llama desde dos sitios
+    porque webview.start() a veces NO retorna tras cerrar la ventana (visto en
+    Windows): el proceso quedaba vivo, retenía el candado de instancia única y
+    el siguiente arranque "no abría". Con esto el proceso muere sí o sí."""
+    api._closing = True
+    for t in api._tabs.values():
+        th = t._thread
+        if th is not None and th.is_alive():
+            th.join(timeout=15)
+    salir(0)
+
+
 def main():
+    if not _instancia_unica():
+        return                              # ya hay un Gestiq abierto
+    if sys.platform.startswith("win"):
+        try:                                # DPI por monitor: texto nítido y sin
+            import ctypes                   # reescalado (si ya estaba fijada por
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)   # pywebview, falla y ya)
+        except Exception:
+            pass
+        # OJO: NO pasar flags por WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS.
+        # Se probó (--disable-features=..., --ignore-gpu-blocklist, etc.) y
+        # SALIÓ MAL: --disable-features REEMPLAZA la lista interna del motor
+        # (no se suma) y dejó el compositor congelado a medio arranque en el
+        # equipo de Toxic. El render sano no necesita ayudas: la causa real de
+        # las "animaciones muertas" era un @media prefers-reduced-motion del
+        # CSS (ya eliminado), no la GPU.
+        os.environ.pop("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", None)
     _limpiar_cache_web()
     api = Api()
     kwargs = dict(
@@ -598,16 +693,16 @@ def main():
         background_color="#101018",
     )
     try:
-        api.win = webview.create_window(vibrancy=True, **kwargs)   # blur nativo (solo macOS)
+        api._win = webview.create_window(vibrancy=True, **kwargs)   # blur nativo (solo macOS)
     except TypeError:
-        api.win = webview.create_window(**kwargs)
+        api._win = webview.create_window(**kwargs)
 
     def al_cerrar():
-        corriendo = [t for t in api.tabs.values() if t._running]
+        corriendo = [t for t in api._tabs.values() if t._running]
         if corriendo:
             seguir = True
             try:
-                seguir = bool(api.win.create_confirmation_dialog(
+                seguir = bool(api._win.create_confirmation_dialog(
                     "Consulta en curso",
                     "Hay una consulta en curso; si cierras ahora se detendrá.\n"
                     "Lo ya consultado queda en el archivo de autoguardado.\n\n"
@@ -616,13 +711,18 @@ def main():
                 pass                       # sin soporte de diálogo → cerrar como antes
             if not seguir:
                 return False               # cancela el cierre
-            for t in corriendo:
-                try: t._do_stop()          # cancela la tarea → _runner autoguarda
-                except Exception: pass
+        api._closing = True                # desde aquí ya no se pinta nada en la UI
+        for t in corriendo:
+            try: t._do_stop()              # cancela la tarea → _runner autoguarda
+            except Exception: pass
         try: updater.aplicar_y_reiniciar()   # si hay update listo, reemplaza y relanza
         except Exception: pass
+        # Remate en segundo plano: aunque webview.start() no retorne (pasa a
+        # veces en Windows), el proceso muere igual tras el autoguardado.
+        threading.Thread(target=lambda: (time.sleep(2), _rematar(api)),
+                         daemon=True).start()
         return True
-    api.win.events.closing += al_cerrar
+    api._win.events.closing += al_cerrar
 
     # Auto-actualización silenciosa en segundo plano.
     def _aviso_update(tag):
@@ -633,10 +733,26 @@ def main():
     except Exception:
         pass
 
+    # private_mode=False conserva el tema elegido. En Windows se fija además un
+    # perfil web PROPIO y estable: sin esto WebView2 usa la carpeta compartida
+    # de pywebview y un perfil bloqueado/corrupto congela la ventana al abrir.
+    inicio = dict(private_mode=False)
+    if sys.platform.startswith("win"):
+        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+        perfil = os.path.join(base, "Gestiq", "webview")
+        try: os.makedirs(perfil, exist_ok=True)
+        except Exception: perfil = None
+        if perfil: inicio["storage_path"] = perfil
     try:
-        webview.start(private_mode=False)   # conserva el tema elegido
+        webview.start(**inicio)
     except TypeError:
-        webview.start()
+        try: webview.start(private_mode=False)
+        except TypeError: webview.start()
+
+    # Ventana cerrada y webview.start() retornó: rematar ya mismo (el watchdog
+    # de al_cerrar cubre el caso en que start() no retorna). El ayudante del
+    # updater ya quedó lanzado como proceso aparte y sobrevive a esta salida.
+    _rematar(api)
 
 
 if __name__ == "__main__":
