@@ -16,7 +16,9 @@ gestiq.py queda solo como referencia de la UI vieja; NO editar lógica allí.
 import os, re, json, time, base64, threading, asyncio
 from urllib.parse import unquote
 
+from copy import copy
 from openpyxl.styles import PatternFill, Font, Alignment
+from openpyxl.utils import get_column_letter, column_index_from_string
 
 try:
     from playwright.async_api import async_playwright, TimeoutError as PWTimeout
@@ -110,6 +112,33 @@ def style_cell(cell, fill=None, white=False):
     cell.alignment = AL_CELL
 
 
+# ── Estilos personalizables de los resultados (Preferencias → Resultados) ───
+# Los defaults REPLICAN el estilo clásico de siempre; el usuario puede cambiar
+# fondo/letra por tipo de resultado y fuente/tamaño/negrita globales. La capa
+# web estampa la personalización en tab.estilos al iniciar cada corrida.
+ESTILOS_DEF = {
+    "fuente":  {"nombre": "Calibri", "tam": 7, "negrita": True},
+    "imagine": {"ok":    {"fondo": "00B050", "letra": "000000"},
+                "dev":   {"fondo": "FF0000", "letra": "000000"},
+                "err":   {"fondo": "FFC000", "letra": "000000"},
+                "nota":  {"fondo": "FF0000", "letra": "000000"},
+                "otros": {"fondo": "",       "letra": "000000"}},
+    "guardian":{"aprobado":  {"fondo": "00B050", "letra": "000000"},
+                "rechazado": {"fondo": "FF0000", "letra": "FFFFFF"},
+                "pendiente": {"fondo": "FF0000", "letra": "000000"},
+                "noenc":     {"fondo": "000000", "letra": "FFFFFF"},
+                "noinf":     {"fondo": "FFC000", "letra": "000000"},
+                "noreq":     {"fondo": "FFFF00", "letra": "000000"},
+                "otros":     {"fondo": "",       "letra": "000000"}},
+}
+
+
+def _hex6(v, defecto):
+    """Valida un color hex de 6 dígitos; si no sirve, cae al default."""
+    v = str(v or "").strip().lstrip("#").upper()
+    return v if re.fullmatch(r"[0-9A-F]{6}", v) else defecto
+
+
 # ════════════════════════════════════════════════════════════════════════════
 #  Base común de los bots
 # ════════════════════════════════════════════════════════════════════════════
@@ -119,6 +148,25 @@ class BaseBot:
 
     AUTOSAVE_CADA = 10          # autoguarda cada N filas procesadas
     autosave_on = True          # preferencia del usuario (la capa web la fija por corrida)
+    estilos = None              # personalización de resultados (la fija la capa web)
+
+    def pintar(self, cell, modulo, clave):
+        """Formatea una celda de resultado con la personalización del usuario
+        (fondo/letra por tipo + fuente/tamaño/negrita globales); sin
+        personalización replica el estilo clásico (ESTILOS_DEF)."""
+        conf = self.estilos or {}
+        base = ESTILOS_DEF.get(modulo, {}).get(clave, {})
+        e = dict(base); e.update((conf.get(modulo) or {}).get(clave) or {})
+        f = dict(ESTILOS_DEF["fuente"]); f.update(conf.get("fuente") or {})
+        fondo = _hex6(e.get("fondo"), base.get("fondo", "")) if e.get("fondo") else ""
+        letra = _hex6(e.get("letra"), base.get("letra", "000000") or "000000")
+        if fondo:
+            cell.fill = xfill(fondo)
+        try:    tam = max(5.0, min(20.0, float(f.get("tam") or 7)))
+        except Exception: tam = 7.0
+        cell.font = Font(name=str(f.get("nombre") or "Calibri")[:40], size=tam,
+                         bold=bool(f.get("negrita", True)), color=letra)
+        cell.alignment = AL_CELL
 
     # Estado (la capa web lo inicializa en init_comun; defaults por seguridad)
     key = ""
@@ -327,6 +375,13 @@ class BaseBot:
 # ════════════════════════════════════════════════════════════════════════════
 class ImagineBot(BaseBot):
 
+    # Palabras que definen el ESTADO real del caso. Lista ÚNICA para categoría,
+    # color de celda y para distinguir la observación de estado de las notas
+    # adicionales (p.ej. "Recuerde que las firmas… se devolverá" NO es estado:
+    # "devolverá" no contiene "devuelve" — no agregar variantes que choquen).
+    KW_OK  = ("autorizado", "aprobado", "pre factura")
+    KW_DEV = ("devuelve", "devuelto", "rechaza", "no coincide")
+
     # ── Categoría del resultado (para el resumen final) ─────────────────────
     @staticmethod
     def _categoria(result):
@@ -339,11 +394,56 @@ class ImagineBot(BaseBot):
             return ("No encontrados", "warn")
         if "errado" in r:
             return ("Errados", "warn")
-        if any(x in r for x in ("autorizado", "aprobado", "pre factura")):
+        if any(x in r for x in ImagineBot.KW_OK):
             return ("Aprobados", "ok")
-        if any(x in r for x in ("devuelve", "rechaza", "no coincide")):
+        if any(x in r for x in ImagineBot.KW_DEV):
             return ("Rechazados", "err")
         return ("Otros", "info")
+
+    # ── Columna NOTAS pegada a la salida (SIN pisar lo que haya al lado) ─────
+    def _col_notas(self, ws, hdr, out_c):
+        """Devuelve la columna para las notas adicionales (out_c+1). Si esa
+        posición ya tiene OTRO encabezado (p.ej. FECHA FACTURACION), inserta
+        una columna nueva ahí y corre lo demás una casilla a la derecha —
+        openpyxl mueve celdas y estilos pero NO anchos/combinadas/filtro:
+        se corren a mano (verificado 03-jul-2026)."""
+        col = out_c + 1
+        cab = ws.cell(row=hdr, column=col)
+        txt = str(cab.value).strip().upper() if cab.value else ""
+        if txt == "NOTAS":
+            return col                              # ya existe (corrida anterior)
+        if txt:                                     # hay otra columna: INSERTAR
+            ws.insert_cols(col)
+            dims = ws.column_dimensions
+            movidas = []                            # anchos/ocultas → una a la derecha
+            for letra in list(dims):
+                i = column_index_from_string(letra)
+                if i >= col:
+                    d = dims.pop(letra)
+                    movidas.append((i + 1, d.width, d.hidden))
+            for i, w, hid in movidas:
+                nd = dims[get_column_letter(i)]
+                if w is not None: nd.width = w
+                nd.hidden = hid
+            for rng in list(ws.merged_cells.ranges):    # combinadas
+                if rng.min_col >= col:   rng.shift(col_shift=1)
+                elif rng.max_col >= col: rng.max_col += 1
+            try:                                        # rango del autofiltro
+                ref = ws.auto_filter.ref
+                if ref:
+                    from openpyxl.worksheet.cell_range import CellRange
+                    r = CellRange(ref)
+                    if r.min_col >= col:   r.shift(col_shift=1)
+                    elif r.max_col >= col: r.max_col += 1
+                    ws.auto_filter.ref = r.coord
+            except Exception:
+                pass
+            dims[get_column_letter(col)].width = 45
+            cab = ws.cell(row=hdr, column=col)
+        cab.value = "NOTAS"
+        try: cab._style = copy(ws.cell(row=hdr, column=out_c)._style)
+        except Exception: pass
+        return col
 
     # ── Orquestador (multi-hoja en una sola corrida) ─────────────────────────
     async def _automate(self):
@@ -372,11 +472,11 @@ class ImagineBot(BaseBot):
                     if not ov or ov == "PENDIENTE" or ov.startswith("ERROR"):
                         jobs.append((row[0].row, cv))
             if jobs:
-                planes.append((nombre, ws, out_c, jobs))
+                planes.append((nombre, ws, hdr, out_c, jobs))
             else:
                 self.app.log(self, f"Hoja «{nombre}»: sin casos pendientes.", "info")
 
-        total = sum(len(p[3]) for p in planes)
+        total = sum(len(p[4]) for p in planes)
         if not total:
             self.app.log(self, "No hay casos pendientes para procesar.", "warn")
             self.after(0, self._on_finish); return
@@ -423,7 +523,8 @@ class ImagineBot(BaseBot):
                 await self._nav_minimizar(ctx, page)    # login listo: fuera del medio
 
             corte = False
-            for nombre, ws, out_c, jobs in planes:
+            nota_cols = {}                      # hoja → columna NOTAS (creada al 1er uso)
+            for nombre, ws, hdr, out_c, jobs in planes:
                 if self._stop or corte: break
                 if multi:
                     self.app.log(self, f"— Hoja «{nombre}» ({len(jobs)} casos) —", "info")
@@ -436,7 +537,7 @@ class ImagineBot(BaseBot):
                         self.app.log(self, f"→ Caso {c}", "info")
                     ))
                     try:
-                        result = await self._procesar_caso(ctx, caso)
+                        result, extra = await self._procesar_caso(ctx, caso)
                     except Exception as e:
                         if "Sesión expirada" in str(e):
                             self.app.log(self, "Sesión expirada — proceso detenido. "
@@ -444,7 +545,7 @@ class ImagineBot(BaseBot):
                             hecho -= 1
                             corte = True
                             break
-                        result = f"ERROR: {str(e)[:80]}"
+                        result, extra = f"ERROR: {str(e)[:80]}", ""
                         self.app.log(self, str(e), "error")
 
                     self._res_add(*self._categoria(result))
@@ -456,18 +557,28 @@ class ImagineBot(BaseBot):
                     cell.value = result
                     self._autosave_dirty = True
                     rl = result.lower()
-                    if any(x in rl for x in ["autorizado", "aprobado", "pre factura"]):
-                        style_cell(cell, F_GREEN)
-                    elif any(x in rl for x in ["devuelve", "rechaza", "no coincide"]):
-                        style_cell(cell, F_RED)
+                    if any(x in rl for x in self.KW_OK):
+                        self.pintar(cell, "imagine", "ok")
+                    elif any(x in rl for x in self.KW_DEV):
+                        self.pintar(cell, "imagine", "dev")
                     elif any(x in rl for x in ["errado", "no encontrado", "error"]):
-                        style_cell(cell, F_ORANGE)
+                        self.pintar(cell, "imagine", "err")
                         if "no encontrado" in rl: not_found.append(caso)
                     else:
-                        style_cell(cell)
+                        self.pintar(cell, "imagine", "otros")
+
+                    # Nota(s) adicionales de la misma gestión → columna NOTAS
+                    # pegada a la salida (se inserta sin pisar lo que haya).
+                    if extra:
+                        if nombre not in nota_cols:
+                            nota_cols[nombre] = self._col_notas(ws, hdr, out_c)
+                        c2 = ws.cell(row=rn, column=nota_cols[nombre], value=extra)
+                        self.pintar(c2, "imagine", "nota")
 
                     self.app.log(self, f"  {caso}: {result[:80]}",
                                  "error" if "no encontrado" in rl else "ok")
+                    if extra:
+                        self.app.log(self, f"  {caso}: nota adicional → {extra[:70]}", "warn")
                     if hecho % self.AUTOSAVE_CADA == 0:
                         self._autosave(force=False)
 
@@ -518,6 +629,8 @@ class ImagineBot(BaseBot):
         return html
 
     async def _procesar_caso(self, ctx, caso):
+        """Devuelve (resultado, extra): resultado va en la columna de salida y
+        extra (notas adicionales de la misma gestión) en la celda de al lado."""
         caso = str(caso).split(".")[0].strip()
 
         # 1) Info del caso
@@ -526,14 +639,14 @@ class ImagineBot(BaseBot):
         body = self._strip(html)
 
         if "No hay resultados" in body or f"No. Caso: {caso}" not in body:
-            return "CASO NO ENCONTRADO"
+            return "CASO NO ENCONTRADO", ""
 
         # Empresa: texto entre "Razón Empresa:" y "Nit/CC"
         # (\S*n tolera problemas de codificación en la tilde de "Razón")
         m = re.search(r"Raz\S*n Empresa:\s*(.*?)\s*Nit/CC", body)
         empresa = m.group(1).upper() if m else body.upper()
         if "IPRECON" not in empresa:
-            return "CASO ERRADO"
+            return "CASO ERRADO", ""
 
         # 2) Actividades: tabla class="table table-striped..." →
         # [Actividad | Usuario | Estado | Fecha Asig. | Fecha Cierre | Gestionar]
@@ -543,28 +656,46 @@ class ImagineBot(BaseBot):
         if mt:
             for celdas in self._filas(mt.group(1)):
                 if len(celdas) >= 3 and "pendiente" in celdas[2].lower():
-                    return None                      # actividad pendiente → omitir
+                    return None, ""                  # actividad pendiente → omitir
 
         # 3) Observaciones (mismo endpoint que usa el botón del modal)
         html2 = await self._ajax(ctx, opcion="cargaObsGestionTotal", na=caso)
 
         # Tabla editorTip: [Fecha | Usuario | Actividad | Observacion | Adjunto]
         mo = re.search(r'<table[^>]*editorTip[^>]*>(.*?)</table>', html2, re.S | re.I)
-        obs_text, best_fecha = "", ""
+        obs = []                                     # [(fecha, texto)] en orden de tabla
         if mo:
             for celdas in self._filas(mo.group(1)):
                 if len(celdas) < 4:
                     continue
-                fecha, obs = celdas[0], celdas[3]
+                fecha, texto = celdas[0], celdas[3]
                 # solo filas cuya 1ª celda es fecha real (salta el encabezado)
-                if not re.match(r"\d{4}-\d{2}-\d{2}", fecha):
-                    continue
-                if obs and fecha >= best_fecha:
-                    best_fecha, obs_text = fecha, obs
+                if texto and re.match(r"\d{4}-\d{2}-\d{2}", fecha):
+                    obs.append((fecha, texto))
 
-        if not obs_text:
-            obs_text = "SIN OBSERVACION"
-        return obs_text
+        if not obs:
+            return "SIN OBSERVACION", ""
+
+        # ESTADO = la observación MÁS RECIENTE que diga aprobado/prefactura o
+        # devuelto/rechazado (KW_OK/KW_DEV); así una nota extra (p.ej. "Recuerde
+        # que las firmas…") no tapa el estado real. Las demás notas del MISMO
+        # DÍA en adelante (misma gestión) se devuelven unidas como extra.
+        estado = None
+        for fecha, texto in obs:
+            tl = texto.lower()
+            if any(k in tl for k in self.KW_OK + self.KW_DEV) \
+               and (estado is None or fecha >= estado[0]):
+                estado = (fecha, texto)
+
+        if estado is None:                           # sin estado claro: como siempre
+            return max(obs, key=lambda o: o[0])[1], ""
+
+        dia = estado[0][:10]
+        vistos, extras = {estado[1]}, []
+        for fecha, texto in obs:
+            if fecha[:10] >= dia and texto not in vistos:
+                extras.append(texto); vistos.add(texto)
+        return estado[1], " | ".join(extras)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -744,21 +875,21 @@ class GuardianBot(BaseBot):
                     cell.value = result
                     self._autosave_dirty = True
                     ru = result.upper()
-                    style_cell(cell)
                     if "RECHAZADO" in ru:
-                        style_cell(cell, F_RED, white=True);    lvl = "error"
+                        self.pintar(cell, "guardian", "rechazado"); lvl = "error"
                     elif "NO REQUIERE" in ru:
-                        style_cell(cell, F_YELLOW);             lvl = "ok"
+                        self.pintar(cell, "guardian", "noreq");     lvl = "ok"
                     elif "PENDIENTE" in ru:
-                        style_cell(cell, F_RED);                lvl = "warn"
+                        self.pintar(cell, "guardian", "pendiente"); lvl = "warn"
                     elif "APROBADO" in ru:
-                        style_cell(cell, F_GREEN);              lvl = "ok"
+                        self.pintar(cell, "guardian", "aprobado");  lvl = "ok"
                     elif "NO HAY INFORME" in ru or "NO NECESITA" in ru:
-                        style_cell(cell, F_ORANGE);             lvl = "warn"
+                        self.pintar(cell, "guardian", "noinf");     lvl = "warn"
                     elif "NO ENCONTR" in ru or "ACTIVIDAD NO" in ru:
-                        style_cell(cell, F_BLACK, white=True)
+                        self.pintar(cell, "guardian", "noenc")
                         no_resultado.append(f"{cron}/{sec}"); lvl = "error"
                     else:
+                        self.pintar(cell, "guardian", "otros")
                         lvl = "orange"   # estado desconocido → visible, nunca gris
 
                     self.app.log(self, f"{cron}/{sec}: {result}", lvl)

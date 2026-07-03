@@ -38,8 +38,11 @@ ASSET_WIN_LIGERO = "Gestiq-Update-Windows.zip"   # solo el exe (update ligero)
 ASSET_WIN_FULL   = "Gestiq-Windows.zip"          # zip completo (respaldo)
 ASSET_MAC        = "Gestiq-Mac.zip"
 
-# Estado compartido entre el hilo de fondo y el cierre de la app.
-_ESTADO = {"listo": False, "tipo": None, "tmp": None, "tag": None}
+# Estado compartido entre el hilo de fondo, la UI (progreso) y el cierre.
+# fase: nada | descargando | verificando | preparando | listo | error
+_ESTADO = {"listo": False, "tipo": None, "tmp": None, "tag": None,
+           "fase": "nada", "pct": None, "mb": 0.0, "mb_total": None,
+           "error": "", "aplicado": False}
 
 # Candado: SOLO una descarga a la vez. Sin esto, el clic en "Buscar
 # actualizaciones" lanzaba una segunda descarga al MISMO directorio mientras
@@ -125,11 +128,21 @@ def _sha256_ok(path, digest):
 
 
 def _descargar(url, dst):
+    """Descarga por bloques publicando el progreso en _ESTADO (mb/mb_total/pct)
+    para que la barra del modal muestre el avance real."""
     tmp = dst + ".part"
     with urllib.request.urlopen(
             urllib.request.Request(url, headers={"User-Agent": "Gestiq-Updater"}),
             timeout=120, context=_ctx()) as r, open(tmp, "wb") as f:
-        shutil.copyfileobj(r, f)
+        try:    total = int(r.headers.get("Content-Length") or 0) or None
+        except Exception: total = None
+        _ESTADO.update(mb_total=round(total / 1048576, 1) if total else None)
+        leidos = 0
+        for bloque in iter(lambda: r.read(1 << 18), b""):      # 256 KB
+            f.write(bloque)
+            leidos += len(bloque)
+            _ESTADO.update(mb=round(leidos / 1048576, 1),
+                           pct=min(99, leidos * 100 // total) if total else None)
     os.replace(tmp, dst)
 
 
@@ -171,12 +184,16 @@ def _descargar_con_candado(on_listo):
 
     work = os.path.join(base, ".gestiq_update")
     try:
+        _ESTADO.update(fase="descargando", pct=None, mb=0.0, mb_total=None,
+                       error="", tag=tag)
         shutil.rmtree(work, ignore_errors=True)
         os.makedirs(work, exist_ok=True)
         zpath = os.path.join(work, "paquete.zip")
         _descargar(url, zpath)
+        _ESTADO.update(fase="verificando")
         if not _sha256_ok(zpath, digests.get(nombre)):
             raise RuntimeError("SHA256 del update no coincide — descarga descartada")
+        _ESTADO.update(fase="preparando")
 
         if plat == "win":
             with zipfile.ZipFile(zpath) as z:
@@ -207,13 +224,15 @@ def _descargar_con_candado(on_listo):
         except OSError:
             pass
 
-        _ESTADO.update(listo=True, tipo=plat, tmp=nuevo, tag=tag)
+        _ESTADO.update(listo=True, tipo=plat, tmp=nuevo, tag=tag,
+                       fase="listo", pct=100)
         if on_listo:
             try:
                 on_listo(tag)
             except Exception:
                 pass
-    except Exception:
+    except Exception as e:
+        _ESTADO.update(fase="error", error=str(e)[:80], pct=None)
         shutil.rmtree(work, ignore_errors=True)
 
 
@@ -254,6 +273,17 @@ def hay_update_listo():
     return bool(_ESTADO.get("listo"))
 
 
+def estado_update():
+    """Progreso de la descarga para la UI del modal (se sondea):
+    {fase, pct (0-100 o None), mb, mb_total, tag, error, listo}."""
+    e = _ESTADO
+    return {"fase": "listo" if e.get("listo") else e.get("fase", "nada"),
+            "pct": 100 if e.get("listo") else e.get("pct"),
+            "mb": e.get("mb"), "mb_total": e.get("mb_total"),
+            "tag": e.get("tag"), "error": e.get("error", ""),
+            "listo": bool(e.get("listo"))}
+
+
 # ── Aplicación del update (al cerrar) ─────────────────────────────────────────
 def aplicar_y_reiniciar():
     """Si hay un update descargado, lanza el ayudante que reemplaza y relanza.
@@ -261,6 +291,9 @@ def aplicar_y_reiniciar():
     Devuelve True si lanzó el proceso de actualización."""
     if not _ESTADO.get("listo"):
         return False
+    if _ESTADO.get("aplicado"):
+        return True                 # ya se lanzó el ayudante (p.ej. "Actualizar
+                                    # ahora" + evento closing): no lanzar DOS
     info = _info()
     if not info:
         return False
@@ -323,6 +356,7 @@ def aplicar_y_reiniciar():
             os.chmod(sh, 0o755)
             subprocess.Popen(["/bin/bash", sh], start_new_session=True,
                              close_fds=True)
+        _ESTADO["aplicado"] = True
         return True
     except Exception:
         return False

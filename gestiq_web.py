@@ -459,8 +459,10 @@ class Api:
             var = getattr(tab, "v_" + k, None)
             if var: var.set(str(v).strip())
 
-        # Preferencia de autoguardado (local, por cuenta) fijada por corrida.
-        tab.autosave_on = bool(G._prefs_get(self._email()).get("autosave", True))
+        # Preferencias locales por cuenta fijadas por corrida.
+        _prefs = G._prefs_get(self._email())
+        tab.autosave_on = bool(_prefs.get("autosave", True))
+        tab.estilos = _prefs.get("estilos") or None   # personalización de resultados
         if not tab.autosave_on:
             self.log(tab, "Autoguardado desactivado (Preferencias): si cierras o "
                           "se corta, lo consultado no queda respaldado.", "warn")
@@ -556,7 +558,7 @@ class Api:
                 except Exception:
                     pass
             kw = {k: v for k, v in kw.items()
-                  if k in ("nombre", "foto", "tema", "modulo", "autosave")}
+                  if k in ("nombre", "foto", "tema", "modulo", "autosave", "estilos")}
             G._prefs_set(em, **kw)
             if self._lic is not None and licencia is not None:
                 try: licencia.set_profile(self._lic, **kw)
@@ -616,11 +618,48 @@ class Api:
             return {"error": f"No se pudo comprobar: {e}"}
 
     def update_listo(self):
-        """¿La descarga del update ya terminó? (el modal lo sondea)."""
+        """¿La descarga del update ya terminó? (compat; el modal usa update_estado)."""
         try:
             return {"listo": updater.hay_update_listo()}
         except Exception:
             return {"listo": False}
+
+    def update_estado(self):
+        """Progreso real de la descarga del update (el modal lo sondea)."""
+        try:
+            return updater.estado_update()
+        except Exception:
+            return {"fase": "nada", "listo": False}
+
+    def actualizar_ahora(self):
+        """Botón «Actualizar ahora»: lanza el ayudante de instalación y cierra
+        la app (el ayudante espera el PID, reemplaza y relanza). El candado
+        `aplicado` del updater evita el doble lanzamiento cuando el cierre
+        dispara también aplicar_y_reiniciar()."""
+        try:
+            if not updater.hay_update_listo():
+                return {"error": "La actualización aún no termina de descargarse."}
+        except Exception:
+            return {"error": "No se pudo comprobar la descarga."}
+        if [t for t in self._tabs.values() if t._running]:
+            return {"error": "Hay una consulta en curso — deténla o espera a que termine."}
+        self._closing = True
+        try:
+            if not updater.aplicar_y_reiniciar():
+                self._closing = False
+                return {"error": "No se pudo iniciar la instalación. Cierra la app normalmente."}
+        except Exception as e:
+            self._closing = False
+            return {"error": f"No se pudo iniciar la instalación: {str(e)[:60]}"}
+
+        def _fin():
+            time.sleep(0.5)                 # deja llegar la respuesta al JS
+            try: self._win.destroy()
+            except Exception: pass
+            time.sleep(2)
+            _rematar(self)                  # por si start() no retorna (Windows)
+        threading.Thread(target=_fin, daemon=True).start()
+        return {"ok": True}
 
 
 # ── Arranque ─────────────────────────────────────────────────────────────────
