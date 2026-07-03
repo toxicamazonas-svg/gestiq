@@ -146,9 +146,14 @@ def _fb_save(data):
         pass
 
 def _guardar(clave, valor):
+    """Escribe SIEMPRE en ambos almacenes (llavero Y archivo). Antes escribía
+    solo en el llavero si existía: la .app (con llavero) y el python local
+    (a veces sin él) quedaban con copias distintas del refresh token — el que
+    leía la copia vieja encontraba un token ya rotado/revocado y la app pedía
+    login "cada vez". Con ambos almacenes siempre al día, no hay split-brain."""
     kr = _kr()
     if kr:
-        try: kr.set_password(_SERVICIO, clave, valor); return
+        try: kr.set_password(_SERVICIO, clave, valor)
         except Exception: pass
     data = _fb_load()
     data[clave] = valor
@@ -176,6 +181,16 @@ def _borrar(clave):
 
 
 # ── Sesión ────────────────────────────────────────────────────────────────────
+def recordar_get():
+    """Preferencia "Recordar inicio de sesión" de IMAGINE/GUARDIÁN (la usan los
+    bots vía nav_recordar; NO afecta la cuenta de la app). Por equipo, default sí."""
+    return _leer("recordar") != "0"
+
+
+def recordar_set(on):
+    _guardar("recordar", "1" if on else "0")
+
+
 def _sesion_desde(j):
     if not j or "access_token" not in j:
         raise LicenciaError("Respuesta de sesión no válida.")
@@ -369,7 +384,17 @@ def verificar(sesion):
     st, j = _post("/rest/v1/rpc/check_license",
                   {"p_machine_id": machine_id()}, token=sesion["access_token"])
     if st == 401:               # access token vencido → renovar y reintentar una vez
-        nueva = restaurar_sesion()
+        # Primero con el refresh de ESTA sesión (imprescindible cuando "recordar
+        # cuenta" está apagado y no hay nada guardado en disco).
+        nueva, rt = None, (sesion or {}).get("refresh_token", "")
+        if rt:
+            st2, j2 = _post("/auth/v1/token?grant_type=refresh_token",
+                            {"refresh_token": rt})
+            if st2 == 200:
+                try: nueva = _sesion_desde(j2)
+                except Exception: nueva = None
+        if not nueva:
+            nueva = restaurar_sesion()
         if not nueva:
             raise LicenciaError("La sesión expiró. Inicia sesión de nuevo.")
         sesion.update(nueva)

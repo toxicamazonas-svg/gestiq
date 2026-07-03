@@ -459,6 +459,12 @@ class Api:
             var = getattr(tab, "v_" + k, None)
             if var: var.set(str(v).strip())
 
+        # Preferencia de autoguardado (local, por cuenta) fijada por corrida.
+        tab.autosave_on = bool(G._prefs_get(self._email()).get("autosave", True))
+        if not tab.autosave_on:
+            self.log(tab, "Autoguardado desactivado (Preferencias): si cierras o "
+                          "se corta, lo consultado no queda respaldado.", "warn")
+
         tab._stop = False
         tab._login_ev = None
         tab._set_running(True)
@@ -494,6 +500,16 @@ class Api:
         return (self._lic or {}).get("email", "")
 
     def _perfil(self):
+        """Perfil de la cuenta + preferencias de equipo (recordar cuenta)."""
+        p = dict(self._perfil_cuenta())
+        try:
+            if licencia is not None:
+                p["recordar"] = licencia.recordar_get()
+        except Exception:
+            pass
+        return p
+
+    def _perfil_cuenta(self):
         """Perfil de la cuenta: el servidor manda, con respaldo local.
         La primera vez tras actualizar, sube el perfil local al servidor."""
         em = self._email()
@@ -505,10 +521,13 @@ class Api:
         except Exception:
             serv = {}
         if serv:
-            if serv != local:
+            if any(local.get(k) != v for k, v in serv.items()):
                 try: G._prefs_set(em, **serv)
                 except Exception: pass
-            return serv
+            # Claves solo-locales (p.ej. autosave) se conservan: el servidor
+            # únicamente conoce nombre/foto/tema/módulo.
+            r = dict(local); r.update(serv)
+            return r
         if local:                      # servidor vacío → migrar lo local
             try: licencia.set_profile(self._lic, **local)
             except Exception: pass
@@ -522,8 +541,22 @@ class Api:
         if not em:
             return {"error": "No hay sesión activa."}
         try:
-            kw = {k: v for k, v in dict(kw or {}).items()
-                  if k in ("nombre", "foto", "tema", "modulo")}
+            kw = dict(kw or {})
+            if "recordar" in kw:            # sesión de IMAGINE/GUARDIÁN (por equipo)
+                rec = bool(kw.pop("recordar"))
+                try:
+                    if licencia is not None and rec != licencia.recordar_get():
+                        # Cambió → se aplica y se OLVIDAN las sesiones guardadas:
+                        # la próxima consulta pedirá iniciar sesión de nuevo.
+                        licencia.recordar_set(rec)
+                        G.nav_borrar_todo()
+                        self.js_toast("ok", "Inicio de sesión",
+                                      "Sesión de IMAGINE/GUARDIÁN olvidada — la "
+                                      "próxima consulta pedirá iniciar sesión.")
+                except Exception:
+                    pass
+            kw = {k: v for k, v in kw.items()
+                  if k in ("nombre", "foto", "tema", "modulo", "autosave")}
             G._prefs_set(em, **kw)
             if self._lic is not None and licencia is not None:
                 try: licencia.set_profile(self._lic, **kw)
@@ -581,6 +614,13 @@ class Api:
             return updater.comprobar_ahora()
         except Exception as e:
             return {"error": f"No se pudo comprobar: {e}"}
+
+    def update_listo(self):
+        """¿La descarga del update ya terminó? (el modal lo sondea)."""
+        try:
+            return {"listo": updater.hay_update_listo()}
+        except Exception:
+            return {"listo": False}
 
 
 # ── Arranque ─────────────────────────────────────────────────────────────────

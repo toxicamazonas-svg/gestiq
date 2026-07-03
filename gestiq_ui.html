@@ -259,7 +259,10 @@ if (navigator.userAgent.indexOf("Windows") !== -1) {
 
   /* ── Ejecución ── */
   /* flex:1 0 auto — crece pero nunca se encoge por debajo de su contenido */
-  .tarjeta.ejec { flex:1 0 auto; display:flex; flex-direction:column; min-height:260px; }
+  /* La tarjeta mide lo que mide su contenido (el log tiene ALTURA FIJA):
+     nada elástico que el motor pueda inflar — el registro jamás vuelve a
+     estirar la página ni a salirse del marco. */
+  .tarjeta.ejec { flex:0 0 auto; display:flex; flex-direction:column; }
   .fila-btns { display:flex; gap:10px; }
   .fila-btns .der { margin-left:auto; }
   .progreso { margin-top:14px; }
@@ -273,7 +276,7 @@ if (navigator.userAgent.indexOf("Windows") !== -1) {
   }
   .log-titulo { font-size:.69rem; font-weight:650; letter-spacing:.08em; color:var(--text3); margin:13px 0 7px; }
   .log {
-    flex:1; min-height:120px; overflow-y:auto; border-radius:var(--r-m);
+    flex:none; height:320px; overflow-y:auto; border-radius:var(--r-m);
     background:var(--log-bg); border:1px solid var(--brd); padding:10px 13px;
     font-family:"SF Mono","Cascadia Mono",Menlo,Consolas,monospace; font-size:.72rem; line-height:1.75;
     color:var(--log-fg);
@@ -357,12 +360,25 @@ if (navigator.userAgent.indexOf("Windows") !== -1) {
   }
   .modal input:focus { border-color:var(--brand); box-shadow:0 0 0 3px rgba(43,217,131,.20); }
   .pcuenta { font-size:.7rem; color:var(--text3); margin-top:7px; word-break:break-all; }
+  /* Switch on/off (Preferencias) */
+  .swfila { display:flex; align-items:center; justify-content:space-between; gap:14px; cursor:pointer; margin:8px 0 2px; }
+  .swfila .swtit { display:block; font-size:.8rem; font-weight:600; color:var(--text); }
+  .swfila .swdesc { display:block; font-size:.7rem; color:var(--text3); line-height:1.45; margin-top:2px; }
+  .sw { appearance:none; -webkit-appearance:none; width:40px; height:24px; flex:0 0 40px; margin:0;
+    border-radius:99px; background:var(--inner); border:1px solid var(--brd);
+    position:relative; cursor:pointer; outline:none; transition:background .25s, border-color .25s; }
+  .sw::after { content:""; position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%;
+    background:var(--text3); transition:transform .25s var(--spring), background .25s; }
+  .sw:checked { background:var(--brand); border-color:var(--brand); }
+  .sw:checked::after { transform:translateX(16px); background:#fff; }
   .pfila { display:flex; align-items:center; gap:14px; }
   .pfila .avatar.grande { margin:0; }
   .modal .msg { min-height:1em; font-size:.76rem; color:var(--err); margin-top:8px; text-align:center; }
-  #updNotas { white-space:pre-wrap; text-align:left; max-height:200px; overflow:auto;
-    font-size:.75rem; color:var(--text2); background:var(--inner);
-    border:1px solid var(--brd); border-radius:10px; padding:10px; margin:8px 0; user-select:text; }
+  #updNotas { white-space:pre-wrap; text-align:left; max-height:230px; overflow:auto;
+    font-size:.75rem; line-height:1.7; color:var(--text2); background:var(--inner);
+    border:1px solid var(--brd); border-radius:10px; padding:14px 16px; margin:14px 0 0; user-select:text; }
+  #modalUpdate h1 { margin:10px 0 2px; }
+  #updAviso { font-size:.76rem; color:var(--text2); line-height:1.5; margin:14px 0 18px; }
 
   /* ── Toasts (abajo-derecha, con barrita de autocierre) ── */
   #toasts { position:fixed; bottom:18px; right:18px; z-index:80; display:flex; flex-direction:column-reverse; gap:8px; }
@@ -525,7 +541,7 @@ if (navigator.userAgent.indexOf("Windows") !== -1) {
     <div class="logo">G</div>
     <div class="brand">Gestiq</div>
     <span id="appver" style="font-size:.7rem;color:var(--muted);margin-top:3px"
-          title="Buscar actualizaciones" onclick="buscarUpdate()">v1.0.18</span>
+          title="Buscar actualizaciones" onclick="buscarUpdate()">v1.0.19</span>
     <div class="hspacer"></div>
     <button class="btn-tema" id="btnTema" onclick="tema()" title="Cambiar tema"><svg class="bi"><use href="#i-luna"/></svg></button>
   </header>
@@ -637,6 +653,21 @@ if (navigator.userAgent.indexOf("Windows") !== -1) {
       <button data-v="imagine" onclick="segSel('segMod','imagine')"><svg class="bi"><use href="#i-lupa"/></svg>IMAGINE</button>
       <button data-v="guardian" onclick="segSel('segMod','guardian')"><svg class="bi"><use href="#i-escudo"/></svg>GUARDIÁN</button>
     </div>
+    <div class="psec">CONSULTAS</div>
+    <label class="swfila" for="swAutosave">
+      <span>
+        <span class="swtit">Autoguardado</span>
+        <span class="swdesc">Guarda una copia de respaldo del Excel mientras corre la consulta, para no perder lo consultado si algo se corta.</span>
+      </span>
+      <input type="checkbox" class="sw" id="swAutosave">
+    </label>
+    <label class="swfila" for="swRecordar">
+      <span>
+        <span class="swtit">Recordar inicio de sesión</span>
+        <span class="swdesc">Recuerda la sesión de IMAGINE y GUARDIÁN para no pedir usuario y contraseña en cada consulta. Al cambiar esta opción se borra la sesión guardada y la próxima consulta pedirá entrar de nuevo.</span>
+      </span>
+      <input type="checkbox" class="sw" id="swRecordar">
+    </label>
     <div class="fila-btns" style="margin-top:20px">
       <button class="btn" style="flex:1" onclick="prefsGuardar()">Guardar cambios</button>
       <button class="btn gris" onclick="cerrarPrefs()">Cancelar</button>
@@ -844,9 +875,9 @@ function pintarHojas(m, hojas) {
     };
     cont.appendChild(t);
   }
-  hojas.forEach((h, i) => {
+  hojas.forEach(h => {
     const s = document.createElement("span");
-    s.className = "hchip" + (i === 0 ? " sel" : "");
+    s.className = "hchip";                  // ninguna preseleccionada: el usuario elige
     s.textContent = h;                      // textContent: sin inyección de HTML
     s.onclick = () => s.classList.toggle("sel");
     cont.appendChild(s);
@@ -912,6 +943,8 @@ async function exportarLog(m) {
   if (r && r.error) toast("err","No se pudo exportar", r.error);
   else if (r && r.ruta) toast("ok","Registro exportado","Guardado en: " + r.ruta);
 }
+let updPoll = null;
+function updPollStop() { if (updPoll) { clearInterval(updPoll); updPoll = null; } }
 async function buscarUpdate() {
   toast("ok","Actualizaciones","Buscando la última versión…");
   const r = await pywebview.api.buscar_update();
@@ -922,9 +955,25 @@ async function buscarUpdate() {
   $("updNotas").textContent = r.notas || "(sin notas de versión)";
   $("updAviso").textContent = r.dev
     ? "Estás corriendo desde el código fuente: actualiza con git."
+    : r.transloc
+    ? "Esta copia corre en modo cuarentena de macOS y no puede auto-actualizarse. Cierra la app y ejecuta en Terminal: xattr -cr sobre Gestiq.app (ver NOTA_MAC.txt), o descarga la versión nueva de la web."
     : (r.listo ? "Ya está descargada: se instalará sola al cerrar la aplicación."
-               : "Se está descargando: se instalará sola al cerrar la aplicación.");
+               : "Descargando… no cierres todavía; te aviso cuando esté lista.");
   $("modalUpdate").classList.add("vis");
+  updPollStop();
+  if (!r.dev && !r.transloc && !r.listo) {
+    // Sondea hasta que la descarga termine y actualiza el aviso (aunque el
+    // modal ya esté cerrado, el toast de "lista" lo da el propio updater).
+    updPoll = setInterval(async () => {
+      try {
+        const s = await pywebview.api.update_listo();
+        if (s && s.listo) {
+          $("updAviso").textContent = "Ya está descargada: se instalará sola al cerrar la aplicación.";
+          updPollStop();
+        }
+      } catch (e) { updPollStop(); }
+    }, 3000);
+  }
 }
 async function detener(m) {
   $(m+"-detener").disabled = true;
@@ -1229,6 +1278,8 @@ function abrirPrefs() {
   segSel("segTema", PERFIL.tema ||
     (document.body.classList.contains("claro") ? "claro" : "oscuro"));
   segSel("segMod", PERFIL.modulo || "imagine");
+  $("swAutosave").checked = PERFIL.autosave !== false;   // por defecto: activado
+  $("swRecordar").checked = PERFIL.recordar !== false;   // por defecto: activado
   $("prefsMsg").textContent = "";
   $("modalPrefs").classList.add("vis");
   requestAnimationFrame(() => { segGlide("segTema", true); segGlide("segMod", true); });
@@ -1247,7 +1298,8 @@ function prefsQuitarFoto() {
 async function prefsGuardar() {
   const n = $("prefsNombre").value.trim();
   if (!n) { $("prefsMsg").textContent = "El nombre no puede estar vacío"; return; }
-  const kw = { nombre: n, tema: segVal("segTema"), modulo: segVal("segMod") };
+  const kw = { nombre: n, tema: segVal("segTema"), modulo: segVal("segMod"),
+               autosave: $("swAutosave").checked, recordar: $("swRecordar").checked };
   if (FOTO_EDIT !== "keep") kw.foto = FOTO_EDIT || null;
   const r = await pywebview.api.prefs_set(kw);
   if (r && r.error) { $("prefsMsg").textContent = r.error; return; }

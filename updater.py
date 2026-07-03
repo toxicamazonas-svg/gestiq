@@ -41,6 +41,17 @@ ASSET_MAC        = "Gestiq-Mac.zip"
 # Estado compartido entre el hilo de fondo y el cierre de la app.
 _ESTADO = {"listo": False, "tipo": None, "tmp": None, "tag": None}
 
+# Candado: SOLO una descarga a la vez. Sin esto, el clic en "Buscar
+# actualizaciones" lanzaba una segunda descarga al MISMO directorio mientras
+# la del arranque seguía corriendo; cada una hace rmtree del trabajo de la
+# otra y en Mac/POSIX ambas mueren (os.replace sobre ruta borrada) → el
+# update "nunca quedaba listo" y al cerrar no se instalaba nada.
+_DL_LOCK = threading.Lock()
+
+# Aviso de "descarga lista" registrado una sola vez (main lo pasa al arrancar);
+# lo reutiliza cualquier descarga, incluida la que dispara la comprobación manual.
+_ON_LISTO = {"cb": None}
+
 
 # ── Utilidades de versión ─────────────────────────────────────────────────────
 def _tupla(v):
@@ -124,6 +135,21 @@ def _descargar(url, dst):
 
 # ── Descarga del update (hilo de fondo) ───────────────────────────────────────
 def _buscar_y_descargar(on_listo=None):
+    if on_listo is None:
+        on_listo = _ON_LISTO.get("cb")
+    if _ESTADO.get("listo"):
+        return                      # ya hay un update descargado y listo
+    if _translocada():
+        return                      # volumen de solo lectura: imposible actualizar
+    if not _DL_LOCK.acquire(blocking=False):
+        return                      # ya hay una descarga en curso: no pisarla
+    try:
+        _descargar_con_candado(on_listo)
+    finally:
+        _DL_LOCK.release()
+
+
+def _descargar_con_candado(on_listo):
     info = _info()
     if not info:
         return
@@ -193,14 +219,22 @@ def _buscar_y_descargar(on_listo=None):
 
 def iniciar_en_segundo_plano(on_listo=None):
     """Lanza la comprobación de actualizaciones sin bloquear el arranque."""
-    threading.Thread(target=_buscar_y_descargar, args=(on_listo,),
-                     daemon=True).start()
+    if on_listo:
+        _ON_LISTO["cb"] = on_listo
+    threading.Thread(target=_buscar_y_descargar, daemon=True).start()
+
+
+def _translocada():
+    """True si macOS está ejecutando la app desde App Translocation (la copia
+    aún tiene la cuarentena y corre desde un volumen temporal de SOLO lectura):
+    ahí el updater no puede ni descargar. Se cura con `xattr -cr Gestiq.app`."""
+    return sys.platform == "darwin" and "/AppTranslocation/" in (sys.executable or "")
 
 
 def comprobar_ahora():
     """Comprobación manual (botón de la UI). Devuelve un dict para mostrar:
-    {hay, tag, actual, notas, listo, dev} o {error}. Si hay una versión nueva
-    y aún no se había descargado, arranca la descarga en segundo plano."""
+    {hay, tag, actual, notas, listo, dev, transloc} o {error}. Si hay una
+    versión nueva y aún no se había descargado, arranca la descarga."""
     try:
         tag, _assets, _digests, notas = _release_latest()
     except Exception as e:
@@ -208,8 +242,10 @@ def comprobar_ahora():
     hay = bool(tag) and _es_mas_nueva(tag, VERSION)
     r = {"hay": hay, "tag": tag, "actual": VERSION,
          "notas": notas[:4000], "listo": hay_update_listo(),
-         "dev": not getattr(sys, "frozen", False)}
-    if hay and not _ESTADO.get("listo") and getattr(sys, "frozen", False):
+         "dev": not getattr(sys, "frozen", False),
+         "transloc": _translocada()}
+    if hay and not _ESTADO.get("listo") and getattr(sys, "frozen", False) \
+           and not _translocada():
         iniciar_en_segundo_plano()                 # empieza a bajarla ya
     return r
 

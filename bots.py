@@ -29,6 +29,22 @@ try:
 except Exception:
     licencia = None
 
+# ── Preferencia "Recordar inicio de sesión" (IMAGINE/GUARDIÁN) ───────────────
+def nav_recordar():
+    """¿Recordar la sesión del navegador entre corridas? (default sí)."""
+    try:
+        return licencia is None or licencia.recordar_get()
+    except Exception:
+        return True
+
+def nav_borrar_todo():
+    """Olvida las sesiones guardadas de IMAGINE y GUARDIÁN (al cambiar el switch)."""
+    for mod in ("imagine", "guardian"):
+        try:
+            os.remove(os.path.join(os.path.expanduser("~"), f".gestiq_nav_{mod}"))
+        except OSError:
+            pass
+
 # Web de registro y pago
 REGISTRO_URL = "https://toxicamazonas-svg.github.io/gestiq/cuenta.html"
 
@@ -81,7 +97,8 @@ F_GREEN   = xfill('00B050')   # verde sólido (APROBADO)
 F_GREENLT = xfill('92D050')   # verde claro (observaciones autorizadas)
 F_RED     = xfill('FF0000')   # rojo (devuelto / rechazado)
 F_ORANGE  = xfill('FFC000')   # naranja (no requiere / errado)
-F_YELLOW  = xfill('FFFF00')   # amarillo (pendiente)
+F_YELLOW  = xfill('FFFF00')   # amarillo típico de Excel (no requiere aprobación)
+F_BLACK   = xfill('000000')   # negro con letra blanca (no encontrada / pendiente)
 
 AL_CELL = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
@@ -101,6 +118,7 @@ class BaseBot:
     helpers de Excel. Los hooks de UI son no-op aquí; la capa web los tapa."""
 
     AUTOSAVE_CADA = 10          # autoguarda cada N filas procesadas
+    autosave_on = True          # preferencia del usuario (la capa web la fija por corrida)
 
     # Estado (la capa web lo inicializa en init_comun; defaults por seguridad)
     key = ""
@@ -174,6 +192,8 @@ class BaseBot:
         resultados nuevos. Los autoguardados periódicos (force=False) se
         espacian mínimo 30 s: guardar un libro grande tarda segundos y
         hacerlo muy seguido hace sentir la app trabada."""
+        if getattr(self, "autosave_on", True) is False:
+            return              # desactivado por el usuario en Preferencias
         if not self.wb or not getattr(self, "_autosave_dirty", False):
             return
         if not force and time.time() - getattr(self, "_autosave_t", 0) < 30:
@@ -206,11 +226,15 @@ class BaseBot:
     # ── Sesión del navegador recordada (storage_state de Playwright) ────────
     # Evita loguearse en IMAGINE/GUARDIÁN en cada corrida. El archivo se
     # guarda ofuscado con la llave del equipo (misma técnica que licencia).
+    # La preferencia "Recordar inicio de sesión" (switch en Preferencias)
+    # gobierna TODO el mecanismo: apagada, ni se carga ni se guarda nada.
     def _nav_path(self):
         mod = (self.key or self.__class__.__name__).lower()
         return os.path.join(os.path.expanduser("~"), f".gestiq_nav_{mod}")
 
     def _nav_guardar(self, estado):
+        if not nav_recordar():
+            return
         try:
             data = json.dumps(estado).encode()
             if licencia is not None:
@@ -225,6 +249,8 @@ class BaseBot:
             pass
 
     def _nav_cargar(self):
+        if not nav_recordar():
+            return None
         try:
             raw = open(self._nav_path(), "rb").read()
             if raw.startswith(b"GQ1") and licencia is not None:
@@ -234,6 +260,34 @@ class BaseBot:
         except Exception:
             pass
         return None
+
+    # ── Ventana del navegador del bot ────────────────────────────────────────
+    # Con la sesión recordada el trabajo corre por API y la ventana blanca de
+    # Chromium solo estorba: se abre minimizada. Si hace falta login manual,
+    # _nav_mostrar la trae de vuelta. CDP solo existe en Chromium (nuestro caso).
+    async def _nav_minimizar(self, ctx, page):
+        try:
+            cdp = await ctx.new_cdp_session(page)
+            w = await cdp.send("Browser.getWindowForTarget")
+            await cdp.send("Browser.setWindowBounds",
+                           {"windowId": w["windowId"],
+                            "bounds": {"windowState": "minimized"}})
+            await cdp.detach()
+            self.app.log(self, "Navegador minimizado — el trabajo sigue en segundo plano.", "info")
+        except Exception:
+            pass                # sin CDP la ventana queda visible: inofensivo
+
+    async def _nav_mostrar(self, ctx, page):
+        try:
+            cdp = await ctx.new_cdp_session(page)
+            w = await cdp.send("Browser.getWindowForTarget")
+            await cdp.send("Browser.setWindowBounds",
+                           {"windowId": w["windowId"],
+                            "bounds": {"windowState": "normal"}})
+            await cdp.detach()
+            await page.bring_to_front()
+        except Exception:
+            pass
 
     # ── Helpers Excel ────────────────────────────────────────────────────────
     def _find_header_row(self, ws):
@@ -342,6 +396,8 @@ class ImagineBot(BaseBot):
             except Exception:
                 ctx = await browser.new_context()
             page = await ctx.new_page()
+            if estado:                  # sesión recordada: la ventana no hace falta
+                await self._nav_minimizar(ctx, page)
             await page.goto(IMAGINE_BASE)
 
             # ¿Sigue viva la sesión recordada? (sondeo barato; si no, login manual)
@@ -356,6 +412,7 @@ class ImagineBot(BaseBot):
                     self.app.log(self, "La sesión guardada expiró — inicia sesión de nuevo.", "info")
 
             if not viva:
+                await self._nav_mostrar(ctx, page)      # el login manual sí necesita la ventana
                 ev = threading.Event()
                 self.after(0, lambda: self._ask_ready(ev, "Imagine (solo inicia sesión — el bot navega solo)"))
                 ev.wait()
@@ -363,6 +420,7 @@ class ImagineBot(BaseBot):
                     await browser.close(); self.after(0, self._on_finish); return
                 try: self._nav_guardar(await ctx.storage_state())
                 except Exception: pass
+                await self._nav_minimizar(ctx, page)    # login listo: fuera del medio
 
             corte = False
             for nombre, ws, out_c, jobs in planes:
@@ -528,7 +586,9 @@ class GuardianBot(BaseBot):
             return ("Pendientes", "warn")
         if "APROBADO" in ru:
             return ("Aprobados", "ok")
-        if "NO NECESITA" in ru:
+        if "NO HAY INFORME" in ru:
+            return ("No hay informe (revisar)", "warn")
+        if "NO NECESITA" in ru:               # texto viejo (archivos anteriores)
             return ("No necesita aprobación", "info")
         return ("Otros", "info")
 
@@ -598,6 +658,8 @@ class GuardianBot(BaseBot):
             except Exception:
                 ctx = await browser.new_context()
             page = await ctx.new_page()
+            if estado:                  # sesión recordada: la ventana no hace falta
+                await self._nav_minimizar(ctx, page)
 
             # ¿Sigue viva la sesión recordada? (sondeo a la API; si no, login manual)
             tok = uid = ""
@@ -627,6 +689,7 @@ class GuardianBot(BaseBot):
                     self.app.log(self, "La sesión guardada expiró — inicia sesión de nuevo.", "info")
 
             if not viva:
+                await self._nav_mostrar(ctx, page)      # el login manual sí necesita la ventana
                 await page.goto("https://www.guardiandelaproductividad.com/login/signin",
                                 timeout=60000, wait_until="domcontentloaded")
                 ev = threading.Event()
@@ -648,6 +711,7 @@ class GuardianBot(BaseBot):
                 hdrs = {"Authorization": f"Bearer {tok}", "Content-Type": "application/json"}
                 try: self._nav_guardar(await ctx.storage_state())
                 except Exception: pass
+                await self._nav_minimizar(ctx, page)    # login listo: fuera del medio
 
             self.app.log(self, f"Sesión OK (usuario {uid}) — consultando por API…", "ok")
 
@@ -683,13 +747,16 @@ class GuardianBot(BaseBot):
                     style_cell(cell)
                     if "RECHAZADO" in ru:
                         style_cell(cell, F_RED, white=True);    lvl = "error"
+                    elif "NO REQUIERE" in ru:
+                        style_cell(cell, F_YELLOW);             lvl = "ok"
                     elif "PENDIENTE" in ru:
-                        style_cell(cell, F_YELLOW);             lvl = "warn"
+                        style_cell(cell, F_RED);                lvl = "warn"
                     elif "APROBADO" in ru:
                         style_cell(cell, F_GREEN);              lvl = "ok"
-                    elif "NO NECESITA" in ru:
-                        style_cell(cell, F_ORANGE);             lvl = "ok"
+                    elif "NO HAY INFORME" in ru or "NO NECESITA" in ru:
+                        style_cell(cell, F_ORANGE);             lvl = "warn"
                     elif "NO ENCONTR" in ru or "ACTIVIDAD NO" in ru:
+                        style_cell(cell, F_BLACK, white=True)
                         no_resultado.append(f"{cron}/{sec}"); lvl = "error"
                     else:
                         lvl = "orange"   # estado desconocido → visible, nunca gris
@@ -749,11 +816,12 @@ class GuardianBot(BaseBot):
         j2 = await r2.json()
         rows = ((j2.get("body") or {}).get("rows")) or []
         if not rows:
-            return "NO NECESITA APROBACION"
+            # La actividad existe pero no tiene documentos ni nada cargado
+            return "NO HAY INFORME (REVISAR)"
 
         # documento más reciente por fecha de carga
         rows.sort(key=lambda d: str(d.get("createdAt") or ""), reverse=True)
         title = str(((rows[0].get("approvalStatus") or {}).get("title")) or "").strip()
         if not title:
-            return "NO NECESITA APROBACION"
+            return "NO HAY INFORME (REVISAR)"
         return title.upper()  # texto tal cual lo devuelve Guardián, en mayúsculas
