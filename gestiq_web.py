@@ -139,9 +139,11 @@ class Api:
     def js_toast(self, tipo, titulo, msg):
         self.js(f"G.toast({json.dumps(tipo)},{json.dumps(str(titulo))},{json.dumps(str(msg))})")
 
-    def log(self, tab, msg, lvl="info"):
+    def log(self, tab, msg, lvl="info", chip=None):
+        """chip = {"t","f","l"}: el resultado como pastilla del color de la celda."""
         ts = datetime.now().strftime("%H:%M:%S")
-        self.js(f"G.log({json.dumps(tab.key)},{json.dumps(ts)},{json.dumps(str(msg))},{json.dumps(lvl)})")
+        self.js(f"G.log({json.dumps(tab.key)},{json.dumps(ts)},{json.dumps(str(msg))},"
+                f"{json.dumps(lvl)},{json.dumps(chip)})")
 
     # ── Licencia ──
     def _lic_dict(self, modo, **k):
@@ -316,14 +318,19 @@ class Api:
         if not sel: return None
         p = sel[0] if isinstance(sel, (list, tuple)) else sel
         try:
-            wb = openpyxl.load_workbook(p)
+            # Solo se listan las hojas: read_only abre en un instante libros que
+            # completos tardan 10-30 s. El libro REAL se carga en iniciar()
+            # (que siempre recargaba de todas formas: aquí no se pierde nada).
+            wb = openpyxl.load_workbook(p, read_only=True)
+            hojas = list(wb.sheetnames)
+            wb.close()
         except Exception as e:
             self.log(tab, f"Error al abrir archivo: {e}", "error")
             return {"error": "El archivo no se pudo abrir. Ciérralo en Excel e inténtalo de nuevo."}
-        tab.xl_path, tab.wb = p, wb
+        tab.xl_path, tab.wb = p, None
         nombre = os.path.basename(p)
-        self.log(tab, f"Cargado: {nombre}  ({len(wb.sheetnames)} hoja(s))", "ok")
-        return {"nombre": nombre, "hojas": wb.sheetnames}
+        self.log(tab, f"Cargado: {nombre}  ({len(hojas)} hoja(s))", "ok")
+        return {"nombre": nombre, "hojas": hojas}
 
     def guardar_copia(self, m):
         tab = self._tabs[m]
@@ -502,14 +509,8 @@ class Api:
         return (self._lic or {}).get("email", "")
 
     def _perfil(self):
-        """Perfil de la cuenta + preferencias de equipo (recordar cuenta)."""
-        p = dict(self._perfil_cuenta())
-        try:
-            if licencia is not None:
-                p["recordar"] = licencia.recordar_get()
-        except Exception:
-            pass
-        return p
+        """Perfil de la cuenta (el servidor manda, con respaldo local)."""
+        return dict(self._perfil_cuenta())
 
     def _perfil_cuenta(self):
         """Perfil de la cuenta: el servidor manda, con respaldo local.
@@ -544,19 +545,6 @@ class Api:
             return {"error": "No hay sesión activa."}
         try:
             kw = dict(kw or {})
-            if "recordar" in kw:            # sesión de IMAGINE/GUARDIÁN (por equipo)
-                rec = bool(kw.pop("recordar"))
-                try:
-                    if licencia is not None and rec != licencia.recordar_get():
-                        # Cambió → se aplica y se OLVIDAN las sesiones guardadas:
-                        # la próxima consulta pedirá iniciar sesión de nuevo.
-                        licencia.recordar_set(rec)
-                        G.nav_borrar_todo()
-                        self.js_toast("ok", "Inicio de sesión",
-                                      "Sesión de IMAGINE/GUARDIÁN olvidada — la "
-                                      "próxima consulta pedirá iniciar sesión.")
-                except Exception:
-                    pass
             kw = {k: v for k, v in kw.items()
                   if k in ("nombre", "foto", "tema", "modulo", "autosave", "estilos")}
             G._prefs_set(em, **kw)
@@ -765,6 +753,7 @@ def main():
         # CSS (ya eliminado), no la GPU.
         os.environ.pop("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", None)
     _limpiar_cache_web()
+    G.nav_limpiar_viejo()          # borra sesiones de bot de versiones anteriores
     api = Api()
     kwargs = dict(
         title="Gestiq", url=_ruta("gestiq_ui.html"), js_api=api,

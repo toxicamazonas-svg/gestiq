@@ -303,9 +303,12 @@ def aplicar_y_reiniciar():
         return False
     pid = os.getpid()
     work = os.path.join(base, ".gestiq_update")
+    # Los ayudantes viven en la carpeta TEMPORAL del sistema (no en work):
+    # así pueden borrar work al terminar sin serrucharse la rama (un script
+    # no puede eliminar con seguridad la carpeta desde la que se ejecuta).
     try:
         if plat == "win":
-            bat = os.path.join(work, "aplicar.bat")
+            bat = os.path.join(tempfile.gettempdir(), f"gestiq_aplicar_{pid}.bat")
             with open(bat, "w", encoding="ascii", errors="ignore") as f:
                 f.write(
                     "@echo off\r\n"
@@ -324,6 +327,7 @@ def aplicar_y_reiniciar():
                     "goto limpiar\r\n"
                     ":relanzar\r\n"
                     f'start "" "{objetivo}"\r\n'
+                    f'rmdir /S /Q "{work}" >NUL 2>&1\r\n'
                     ":limpiar\r\n"
                     '(goto) 2>nul & del "%~f0"\r\n'
                 )
@@ -334,7 +338,7 @@ def aplicar_y_reiniciar():
                              creationflags=DETACHED | NEWGROUP | NOWINDOW,
                              close_fds=True, cwd=base)
         else:
-            sh = os.path.join(work, "aplicar.sh")
+            sh = os.path.join(tempfile.gettempdir(), f"gestiq_aplicar_{pid}.sh")
             with open(sh, "w", encoding="utf-8") as f:
                 f.write(
                     "#!/bin/bash\n"
@@ -347,6 +351,9 @@ def aplicar_y_reiniciar():
                     f'if mv "{nuevo}" "{objetivo}"; then\n'
                     f'  xattr -cr "{objetivo}"\n'
                     f'  rm -rf "{objetivo}.old"\n'
+                    # instalado: fuera la carpeta de trabajo (antes quedaba
+                    # .gestiq_update residual junto a la app)
+                    f'  rm -rf "{work}"\n'
                     "else\n"
                     f'  mv "{objetivo}.old" "{objetivo}"\n'
                     "fi\n"

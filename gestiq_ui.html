@@ -282,6 +282,9 @@ if (navigator.userAgent.indexOf("Windows") !== -1) {
     color:var(--log-fg);
     backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
   }
+  /* El scroll del registro se queda DENTRO del marco: la pista arranca después
+     de la curva de las esquinas (radio 14px) y el pulgar nunca la invade. */
+  .log::-webkit-scrollbar-track { margin:14px 0; }
   .log:empty { display:flex; align-items:center; justify-content:center; }
   .log:empty::before {
     content:"Sin actividad todavía — inicia una consulta para ver el registro aquí";
@@ -290,6 +293,8 @@ if (navigator.userAgent.indexOf("Windows") !== -1) {
   body.claro .log:empty::before { color:#5E6570; }
   .log div { animation:sube .25s var(--suave); white-space:pre-wrap; word-break:break-word; }
   .log .ok{color:#3DDC84} .log .error{color:#FF7B7B} .log .warn{color:#FFB454} .log .orange{color:#FF9D5C}
+  /* .lres: el texto del resultado, coloreado inline con el color configurado
+     en Preferencias → Resultados (sin pastilla, a pedido de Toxic 08-jul). */
 
   /* ── Overlay licencia ── */
   .velo {
@@ -347,19 +352,43 @@ if (navigator.userAgent.indexOf("Windows") !== -1) {
   }
   /* La barra de scroll del modal, contenida: margen arriba/abajo para no
      montarse en las esquinas redondeadas y pulgar con aire del borde. */
-  .modal .caja::-webkit-scrollbar { width:11px; }
-  .modal .caja::-webkit-scrollbar-track { background:transparent; margin:20px 0; }
-  .modal .caja::-webkit-scrollbar-thumb { background:var(--brd2); border-radius:99px;
+  .modal .caja::-webkit-scrollbar, .modal .pcuerpo::-webkit-scrollbar { width:11px; }
+  .modal .caja::-webkit-scrollbar-track, .modal .pcuerpo::-webkit-scrollbar-track {
+    background:transparent; margin:20px 0; }
+  .modal .caja::-webkit-scrollbar-thumb, .modal .pcuerpo::-webkit-scrollbar-thumb {
+    background:var(--brd2); border-radius:99px;
     border:3px solid transparent; background-clip:padding-box; }
-  /* X de cierre: pegajosa arriba a la derecha, visible aunque scrollees.
-     Bloque con margin-left:auto (float+sticky es frágil en WKWebView); el
-     margen inferior negativo compensa su alto para no empujar el contenido. */
-  .mcerrar { position:sticky; top:0; z-index:3; margin:-16px -20px -14px auto;
-    width:30px; height:30px; border-radius:9px; font-size:.9rem; line-height:1;
-    background:none; border:none; color:var(--text3);
+  /* X de cierre: pegajosa arriba a la derecha, visible aunque scrollees
+     La X vive en una barra FIJA (.ptop) fuera del área que scrollea (.pcuerpo):
+     nunca se monta sobre el contenido (sticky flotaba encima de los campos). */
+  .mcerrar { width:30px; height:30px; border-radius:9px; font-size:.9rem; line-height:1;
+    background:none; border:none; color:var(--text3); flex:0 0 30px;
     cursor:pointer; display:flex; align-items:center; justify-content:center;
     transition:color .2s, background .2s; }
   .mcerrar:hover { color:var(--err); background:var(--tint-err); }
+  /* Preferencias: encabezado fijo + cuerpo con scroll propio. Alturas por
+     unidades de viewport (calc de vh), NUNCA % anidados (regla WKWebView). */
+  .modal .caja.cprefs { padding:0; overflow:hidden; position:relative; }
+  .cprefs .ptop { display:flex; align-items:center; justify-content:space-between;
+    padding:16px 16px 12px 30px; }
+  .cprefs .ptop h1 { margin:0; }
+  .cprefs .pcuerpo { overflow-y:auto; max-height:calc(84vh - 60px);
+    padding:14px 30px 28px; overscroll-behavior:contain; }
+  /* Fades de scroll del cuerpo (mismo patrón probado del main: divs absolutos,
+     opacidad proporcional en los primeros 28px; NUNCA sticky en WKWebView). */
+  .pfade { position:absolute; left:0; right:0; height:30px; pointer-events:none;
+    z-index:4; opacity:0; transition:opacity .12s linear; }
+  .pfade.t { top:57px; background:linear-gradient(to bottom, var(--card-op), transparent); }
+  .pfade.b { bottom:0; background:linear-gradient(to top, var(--card-op), transparent);
+    border-radius:0 0 var(--r-l) var(--r-l); }
+  /* Más aire entre secciones y filas (pedido: "todo muy pegado") */
+  .cprefs .psec { margin:24px 0 10px; }
+  .cprefs .pcuerpo > .psec:first-child { margin-top:4px; }
+  .cprefs .plabel { margin:10px 0 8px; }
+  .cprefs .swfila { margin:14px 0 6px; gap:18px; }
+  .cprefs .swfila .swdesc { margin-top:3px; }
+  .cprefs .estgrupo { margin:20px 0 9px; }
+  .cprefs .estfila { margin:9px 0; }
   .modal .micono {
     width:46px; height:46px; margin:0 auto 4px; border-radius:14px;
     background:var(--tint-ok); border:1px solid rgba(43,217,131,.22); color:var(--brand);
@@ -394,13 +423,17 @@ if (navigator.userAgent.indexOf("Windows") !== -1) {
   .pfila .avatar.grande { margin:0; }
   /* Personalización de resultados (Preferencias → RESULTADOS EN EL EXCEL) */
   .estglobal { display:flex; align-items:center; gap:10px; }
-  .modal .estglobal select { flex:1; min-width:0; height:34px; padding:0 10px; margin:0;
+  /* Wrapper del select: es el ítem flex que encoge. Un <span> con min-width:0 +
+     overflow:hidden SÍ baja su tamaño mínimo a 0 en WebKit (el <select> nativo
+     NO lo hace ni con min-width:0 → inflaba la fila y sacaba «Negrita» a la
+     derecha en Mac). El select va a width:100% del wrapper, así nunca desborda. */
+  .modal .estglobal .estselw { flex:1 1 0; min-width:0; display:flex; overflow:hidden; }
+  .modal .estglobal .estselw select { width:100%; min-width:0; overflow:hidden; text-overflow:ellipsis;
+    height:34px; padding:0 10px; margin:0;
     font-size:.78rem; background:var(--inner); color:var(--text); border:1px solid var(--brd);
     border-radius:8px; outline:none; font-family:inherit; }
-  .estneg { flex:0 0 auto; white-space:nowrap; }
   .modal .estglobal input[type="number"] { flex:0 0 60px; width:60px; height:34px; padding:0 6px;
     text-align:center; font-size:.78rem; border-radius:8px; }
-  .estneg { display:flex; align-items:center; gap:8px; font-size:.73rem; color:var(--text2); cursor:pointer; }
   .estgrupo { font-size:.66rem; font-weight:700; letter-spacing:.08em; color:var(--text3); margin:13px 0 5px; }
   .estfila { display:flex; align-items:center; gap:8px; margin:5px 0; }
   .estfila .esttit { flex:1; font-size:.72rem; color:var(--text2); line-height:1.3; }
@@ -532,6 +565,9 @@ if (navigator.userAgent.indexOf("Windows") !== -1) {
   .hojas{display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start;align-content:flex-start;
     background:var(--inner);border:1px solid var(--brd);border-radius:var(--r-m);
     padding:9px 10px;min-height:46px;max-height:170px;overflow-y:auto}
+  /* Igual que en el registro: la pista del scroll arranca después de la curva
+     de las esquinas (radio 14px) y el pulgar no se sale del marco. */
+  .hojas::-webkit-scrollbar-track { margin:14px 0; }
   .hojas .vacia{font-size:.72rem;color:var(--text3);padding:4px 2px}
   /* fade dinámico: --ft/--fb (0–16px) los fija fadeHojas() según el scroll */
   .hojas.scrolly{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 var(--ft,0px),#000 calc(100% - var(--fb,16px)),transparent 100%);
@@ -615,7 +651,7 @@ if (navigator.userAgent.indexOf("Windows") !== -1) {
     <div class="logo">G</div>
     <div class="brand">Gestiq</div>
     <span id="appver" style="font-size:.7rem;color:var(--muted);margin-top:3px"
-          title="Buscar actualizaciones" onclick="buscarUpdate()">v1.0.20</span>
+          title="Buscar actualizaciones" onclick="buscarUpdate()">v1.0.21</span>
     <div class="hspacer"></div>
     <button class="btn-tema" id="btnTema" onclick="tema()" title="Cambiar tema"><svg class="bi"><use href="#i-luna"/></svg></button>
   </header>
@@ -708,9 +744,14 @@ if (navigator.userAgent.indexOf("Windows") !== -1) {
 
 <!-- Modal preferencias -->
 <div class="modal" id="modalPrefs">
-  <div class="caja izq">
-    <button type="button" class="mcerrar" onclick="cerrarPrefs()" title="Cerrar">✕</button>
-    <h1>Preferencias</h1>
+  <div class="caja izq cprefs">
+    <div class="ptop">
+      <h1>Preferencias</h1>
+      <button type="button" class="mcerrar" onclick="cerrarPrefs()" title="Cerrar">✕</button>
+    </div>
+    <div class="pfade t" id="pfadeT"></div>
+    <div class="pfade b" id="pfadeB"></div>
+    <div class="pcuerpo" id="pcuerpo">
     <div class="psec">PERFIL</div>
     <div class="pfila">
       <div class="avatar grande" id="prefsAvatar" onclick="prefsFoto()" title="Cambiar foto">?</div>
@@ -742,24 +783,23 @@ if (navigator.userAgent.indexOf("Windows") !== -1) {
       </span>
       <input type="checkbox" class="sw" id="swAutosave">
     </label>
-    <label class="swfila" for="swRecordar">
-      <span>
-        <span class="swtit">Recordar inicio de sesión</span>
-        <span class="swdesc">Recuerda la sesión de IMAGINE y GUARDIÁN para no pedir usuario y contraseña en cada consulta. Al cambiar esta opción se borra la sesión guardada y la próxima consulta pedirá entrar de nuevo.</span>
-      </span>
-      <input type="checkbox" class="sw" id="swRecordar">
-    </label>
     <div class="psec">RESULTADOS EN EL EXCEL</div>
-    <label class="plabel">Fuente, tamaño y negrita de los resultados</label>
+    <label class="plabel">Fuente y tamaño de los resultados</label>
     <div class="estglobal">
-      <select id="estFuente">
+      <span class="estselw"><select id="estFuente">
         <option>Calibri</option><option>Arial</option><option>Aptos Narrow</option>
         <option>Segoe UI</option><option>Tahoma</option><option>Verdana</option>
         <option>Times New Roman</option>
-      </select>
+      </select></span>
       <input type="number" id="estTam" min="6" max="16" step="1">
-      <label class="estneg" for="estNegrita">Negrita <input type="checkbox" class="sw" id="estNegrita"></label>
     </div>
+    <label class="swfila" for="estNegrita">
+      <span>
+        <span class="swtit">Negrita</span>
+        <span class="swdesc">Escribe los resultados en negrita en el Excel.</span>
+      </span>
+      <input type="checkbox" class="sw" id="estNegrita">
+    </label>
     <div class="estgrupo">IMAGINE</div>
     <div class="estfila" data-mod="imagine" data-clave="ok">
       <span class="estprev">Aprobado</span><span class="esttit">Aprobados (pre factura)</span>
@@ -808,6 +848,7 @@ if (navigator.userAgent.indexOf("Windows") !== -1) {
       <button class="btn gris" onclick="cerrarPrefs()">Cancelar</button>
     </div>
     <div class="msg" id="prefsMsg"></div>
+    </div><!-- /pcuerpo -->
   </div>
 </div>
 
@@ -829,6 +870,9 @@ let MOD = "imagine", PLAN = "completo", PORTAL_MOD = null;
 let EMAIL = "", PERFIL = {}, FOTO_NUEVO = null, FOTO_EDIT = "keep";
 const esc = s => String(s).replace(/[&<>"']/g,
   c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+/* Blinda un base64 de foto antes de inyectarlo en un src (solo deja
+   caracteres válidos de base64: nada puede escapar del atributo). */
+const fotoB64 = f => String(f || "").replace(/[^A-Za-z0-9+/=]/g, "");
 
 /* ════ Red de seguridad del arranque ════
    Cualquier error de JS mientras el velo esté visible se PINTA en el velo
@@ -1216,11 +1260,33 @@ function setRunning(m, on) {
 
 /* ════ Python → JS (objeto G) ════ */
 const PRE = { info:"·  ", ok:"✓  ", warn:"⚠  ", error:"✗  ", orange:"◆  " };
+/* Color del texto del resultado en el log = el FONDO configurado del tipo
+   (Preferencias → Resultados). Si ese color no se lee sobre el fondo del log
+   (negro en tema oscuro, casi-blanco/amarillo en tema claro), cae al color de
+   LETRA configurado; si tampoco se lee, se queda con el color de la línea. */
+function colorLegible(fondo, letra) {
+  const claro = document.body.classList.contains("claro");
+  const vis = h => {
+    if (!/^[0-9A-Fa-f]{6}$/.test(h || "")) return false;
+    const n = parseInt(h, 16), r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255;
+    return claro ? (.2126*r + .7152*g + .0722*b) <= 200   // nada casi-blanco sobre claro
+                 : Math.max(r, g, b) >= 96;               // nada casi-negro sobre oscuro
+  };
+  return vis(fondo) ? fondo : vis(letra) ? letra : "";
+}
 window.G = {
-  log(m, ts, msg, lvl) {
+  log(m, ts, msg, lvl, chip) {
     const d = document.createElement("div");
     d.className = lvl;
     d.textContent = ts + "  " + (PRE[lvl] || "   ") + msg;
+    if (chip && chip.t) {              // resultado coloreado como en Preferencias
+      const s = document.createElement("span");
+      s.className = "lres";
+      s.textContent = chip.t;          // solo textContent: sin inyección de HTML
+      const col = colorLegible(chip.f, chip.l);
+      if (col) s.style.color = "#" + col;
+      d.appendChild(s);
+    }
     const log = $(m+"-log");
     log.appendChild(d);
     log.scrollTop = log.scrollHeight;
@@ -1302,8 +1368,8 @@ function pintarLic(e) {
     aplicarPlan(e.plan);
     if (PERFIL.modulo && planPermite(PERFIL.modulo)) modulo(PERFIL.modulo, true);
     if (!PERFIL.nombre) abrirPerfilInicial();
-    else toast("ok", saludoHora() + ", " + esc(PERFIL.nombre) + " 👋",
-               "Sesión iniciada correctamente.");
+    else toast("ok", saludoHora() + ", " + PERFIL.nombre + " 👋",
+               "Sesión iniciada correctamente.");   // toast() ya escapa: sin esc() doble
     return;
   }
   velo.classList.remove("oculto");
@@ -1314,7 +1380,7 @@ function pintarLic(e) {
   } else if (e.modo === "login") {
     const p = e.prefs || {};
     const icono = p.foto
-      ? `<div class="avatar grande" style="cursor:default"><img src="data:image/png;base64,${p.foto}"></div>`
+      ? `<div class="avatar grande" style="cursor:default"><img src="data:image/png;base64,${fotoB64(p.foto)}"></div>`
       : `<div class="logo" style="width:54px;height:54px;font-size:22px;border-radius:16px;margin:0 auto">G</div>`;
     const titulo = p.nombre ? "Hola de nuevo, " + esc(p.nombre)
                             : "Inicia sesión en Gestiq";
@@ -1392,7 +1458,7 @@ async function cambiarCuenta() { pintarLic(await pywebview.api.salir()); }
 
 /* ════ Perfil y preferencias ════ */
 function pintarAvatar(el, foto, nombre) {
-  if (foto) el.innerHTML = `<img src="data:image/png;base64,${foto}">`;
+  if (foto) el.innerHTML = `<img src="data:image/png;base64,${fotoB64(foto)}">`;
   else el.textContent = ((nombre || EMAIL || "?").trim()[0] || "?").toUpperCase();
 }
 function pintarChip() {
@@ -1452,7 +1518,7 @@ async function perfilGuardar() {
   PERFIL = (r && r.prefs) || kw;
   pintarChip();
   $("modalPerfil").classList.remove("vis");
-  toast("ok", "¡Hola, " + esc(n) + "!", "Tu perfil quedó guardado.");
+  toast("ok", "¡Hola, " + n + "!", "Tu perfil quedó guardado.");  // toast() ya escapa
 }
 $("perfilNombre").addEventListener("input", () => {
   const n = $("perfilNombre").value.trim();
@@ -1488,7 +1554,7 @@ function segVal(id) {
 const EST_DEF = {
   fuente:  { nombre:"Calibri", tam:7, negrita:true },
   imagine: { ok:{fondo:"00B050",letra:"000000"}, dev:{fondo:"FF0000",letra:"000000"},
-             err:{fondo:"FFC000",letra:"000000"}, nota:{fondo:"FF0000",letra:"000000"} },
+             err:{fondo:"FFC000",letra:"000000"}, nota:{fondo:"4169E1",letra:"FFFFFF"} },  /* nota = azul rey */
   guardian:{ aprobado:{fondo:"00B050",letra:"000000"}, rechazado:{fondo:"FF0000",letra:"FFFFFF"},
              pendiente:{fondo:"FF0000",letra:"000000"}, noenc:{fondo:"000000",letra:"FFFFFF"},
              noinf:{fondo:"FFC000",letra:"000000"}, noreq:{fondo:"FFFF00",letra:"000000"} } };
@@ -1595,13 +1661,22 @@ function abrirPrefs() {
     (document.body.classList.contains("claro") ? "claro" : "oscuro"));
   segSel("segMod", PERFIL.modulo || "imagine");
   $("swAutosave").checked = PERFIL.autosave !== false;   // por defecto: activado
-  $("swRecordar").checked = PERFIL.recordar !== false;   // por defecto: activado
   estCargar(PERFIL.estilos);
   $("prefsMsg").textContent = "";
+  $("pcuerpo").scrollTop = 0;
   $("modalPrefs").classList.add("vis");
-  requestAnimationFrame(() => { segGlide("segTema", true); segGlide("segMod", true); });
+  requestAnimationFrame(() => { segGlide("segTema", true); segGlide("segMod", true); pfade(); });
 }
 function cerrarPrefs() { colorCerrar(); $("modalPrefs").classList.remove("vis"); }
+/* Fades del cuerpo de Preferencias (proporcional en los primeros 28px) */
+function pfade() {
+  const c = $("pcuerpo");
+  const t = Math.max(0, Math.min(c.scrollTop, 28)) / 28;
+  const b = Math.max(0, Math.min(c.scrollHeight - c.clientHeight - c.scrollTop, 28)) / 28;
+  $("pfadeT").style.opacity = t.toFixed(2);
+  $("pfadeB").style.opacity = b.toFixed(2);
+}
+$("pcuerpo").addEventListener("scroll", pfade, { passive: true });
 async function prefsFoto() {
   const b = await pedirFoto();
   if (!b) return;
@@ -1616,7 +1691,7 @@ async function prefsGuardar() {
   const n = $("prefsNombre").value.trim();
   if (!n) { $("prefsMsg").textContent = "El nombre no puede estar vacío"; return; }
   const kw = { nombre: n, tema: segVal("segTema"), modulo: segVal("segMod"),
-               autosave: $("swAutosave").checked, recordar: $("swRecordar").checked,
+               autosave: $("swAutosave").checked,
                estilos: estRecoger() };
   if (FOTO_EDIT !== "keep") kw.foto = FOTO_EDIT || null;
   const r = await pywebview.api.prefs_set(kw);

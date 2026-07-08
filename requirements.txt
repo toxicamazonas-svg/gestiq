@@ -1,6 +1,11 @@
 # Pines con tope de versión mayor: evita que una release se rompa sola
 # porque Actions instaló una dependencia nueva incompatible.
-playwright>=1.40,<2
+# playwright va EXACTO: el update ligero de Windows conserva el ms-playwright
+# del cliente; si Actions compilara con un playwright más nuevo, el exe pediría
+# OTRO Chromium y el bot moriría en todos los auto-actualizados. Subirlo SOLO a
+# propósito (y ese release debe pedir reinstalación completa en Windows).
+# 1.60.0 = lo que instaló Actions al compilar v1.0.19/v1.0.20 (Chromium 148).
+playwright==1.60.0
 openpyxl>=3.1,<4
 pywebview>=5.0,<7
 pillow>=10.0,<12

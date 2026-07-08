@@ -31,16 +31,11 @@ try:
 except Exception:
     licencia = None
 
-# ── Preferencia "Recordar inicio de sesión" (IMAGINE/GUARDIÁN) ───────────────
-def nav_recordar():
-    """¿Recordar la sesión del navegador entre corridas? (default sí)."""
-    try:
-        return licencia is None or licencia.recordar_get()
-    except Exception:
-        return True
-
-def nav_borrar_todo():
-    """Olvida las sesiones guardadas de IMAGINE y GUARDIÁN (al cambiar el switch)."""
+# ── Limpieza de sesiones de navegador de versiones anteriores ────────────────
+# La función "Recordar inicio de sesión" se retiró: IMAGINE/GUARDIÁN piden
+# login manual en cada corrida. Esto borra los archivos que dejaron versiones
+# previas (tokens de sesión ofuscados) para no dejar credenciales viejas.
+def nav_limpiar_viejo():
     for mod in ("imagine", "guardian"):
         try:
             os.remove(os.path.join(os.path.expanduser("~"), f".gestiq_nav_{mod}"))
@@ -103,13 +98,7 @@ F_YELLOW  = xfill('FFFF00')   # amarillo típico de Excel (no requiere aprobaci�
 F_BLACK   = xfill('000000')   # negro con letra blanca (no encontrada / pendiente)
 
 AL_CELL = Alignment(horizontal='center', vertical='center', wrap_text=True)
-
-def style_cell(cell, fill=None, white=False):
-    """Aplica el formato del Excel original: Calibri 7 negrita, centrado, ajustar texto."""
-    if fill: cell.fill = fill
-    cell.font      = Font(name='Calibri', size=7, bold=True,
-                          color='FFFFFF' if white else '000000')
-    cell.alignment = AL_CELL
+# (style_cell eliminado 08-jul-2026: era código muerto — lo reemplazó BaseBot.pintar)
 
 
 # ── Estilos personalizables de los resultados (Preferencias → Resultados) ───
@@ -121,7 +110,7 @@ ESTILOS_DEF = {
     "imagine": {"ok":    {"fondo": "00B050", "letra": "000000"},
                 "dev":   {"fondo": "FF0000", "letra": "000000"},
                 "err":   {"fondo": "FFC000", "letra": "000000"},
-                "nota":  {"fondo": "FF0000", "letra": "000000"},
+                "nota":  {"fondo": "4169E1", "letra": "FFFFFF"},  # azul rey (Toxic 08-jul)
                 "otros": {"fondo": "",       "letra": "000000"}},
     "guardian":{"aprobado":  {"fondo": "00B050", "letra": "000000"},
                 "rechazado": {"fondo": "FF0000", "letra": "FFFFFF"},
@@ -147,19 +136,35 @@ class BaseBot:
     helpers de Excel. Los hooks de UI son no-op aquí; la capa web los tapa."""
 
     AUTOSAVE_CADA = 10          # autoguarda cada N filas procesadas
+    CONCURRENCIA = 4            # consultas simultáneas por API (asyncio). Todo corre
+                                # en UN hilo/loop: las escrituras al Excel no se pisan
     autosave_on = True          # preferencia del usuario (la capa web la fija por corrida)
     estilos = None              # personalización de resultados (la fija la capa web)
+
+    def _colores(self, modulo, clave):
+        """(fondo, letra) EFECTIVOS de un tipo de resultado: personalización del
+        usuario sobre los defaults clásicos. Lo usan pintar() y el chip del
+        registro — misma resolución, para que el log sea idéntico a la celda."""
+        conf = self.estilos or {}
+        base = ESTILOS_DEF.get(modulo, {}).get(clave, {})
+        e = dict(base); e.update((conf.get(modulo) or {}).get(clave) or {})
+        fondo = _hex6(e.get("fondo"), base.get("fondo", "")) if e.get("fondo") else ""
+        letra = _hex6(e.get("letra"), base.get("letra", "000000") or "000000")
+        return fondo, letra
+
+    def _chip(self, modulo, clave, texto):
+        """Chip para el registro: el texto del resultado con el MISMO fondo y
+        letra que la celda. Sin fondo configurado no hay chip (None)."""
+        fondo, letra = self._colores(modulo, clave)
+        return {"t": str(texto), "f": fondo, "l": letra} if fondo else None
 
     def pintar(self, cell, modulo, clave):
         """Formatea una celda de resultado con la personalización del usuario
         (fondo/letra por tipo + fuente/tamaño/negrita globales); sin
         personalización replica el estilo clásico (ESTILOS_DEF)."""
         conf = self.estilos or {}
-        base = ESTILOS_DEF.get(modulo, {}).get(clave, {})
-        e = dict(base); e.update((conf.get(modulo) or {}).get(clave) or {})
         f = dict(ESTILOS_DEF["fuente"]); f.update(conf.get("fuente") or {})
-        fondo = _hex6(e.get("fondo"), base.get("fondo", "")) if e.get("fondo") else ""
-        letra = _hex6(e.get("letra"), base.get("letra", "000000") or "000000")
+        fondo, letra = self._colores(modulo, clave)
         if fondo:
             cell.fill = xfill(fondo)
         try:    tam = max(5.0, min(20.0, float(f.get("tam") or 7)))
@@ -271,44 +276,6 @@ class BaseBot:
             "items": [{"t": t, "n": n, "c": c} for t, (n, c) in self._res.items()],
         }
 
-    # ── Sesión del navegador recordada (storage_state de Playwright) ────────
-    # Evita loguearse en IMAGINE/GUARDIÁN en cada corrida. El archivo se
-    # guarda ofuscado con la llave del equipo (misma técnica que licencia).
-    # La preferencia "Recordar inicio de sesión" (switch en Preferencias)
-    # gobierna TODO el mecanismo: apagada, ni se carga ni se guarda nada.
-    def _nav_path(self):
-        mod = (self.key or self.__class__.__name__).lower()
-        return os.path.join(os.path.expanduser("~"), f".gestiq_nav_{mod}")
-
-    def _nav_guardar(self, estado):
-        if not nav_recordar():
-            return
-        try:
-            data = json.dumps(estado).encode()
-            if licencia is not None:
-                data = b"GQ1" + licencia._ofusca(data)
-            else:
-                data = b"B64" + base64.b64encode(data)
-            with open(self._nav_path(), "wb") as f:
-                f.write(data)
-            try: os.chmod(self._nav_path(), 0o600)
-            except Exception: pass
-        except Exception:
-            pass
-
-    def _nav_cargar(self):
-        if not nav_recordar():
-            return None
-        try:
-            raw = open(self._nav_path(), "rb").read()
-            if raw.startswith(b"GQ1") and licencia is not None:
-                return json.loads(licencia._ofusca(raw[3:]))
-            if raw.startswith(b"B64"):
-                return json.loads(base64.b64decode(raw[3:]))
-        except Exception:
-            pass
-        return None
-
     # ── Ventana del navegador del bot ────────────────────────────────────────
     # Con la sesión recordada el trabajo corre por API y la ventana blanca de
     # Chromium solo estorba: se abre minimizada. Si hace falta login manual,
@@ -382,6 +349,18 @@ class ImagineBot(BaseBot):
     KW_OK  = ("autorizado", "aprobado", "pre factura")
     KW_DEV = ("devuelve", "devuelto", "rechaza", "no coincide")
 
+    # ── ¿El texto es OK o DEV? Gana la palabra que APARECE PRIMERO ──────────
+    # (decisión de Toxic 08-jul-2026): "Se devuelve: el valor no coincide con
+    # lo autorizado" trae palabras de ambos tipos — manda la primera del texto
+    # ("devuelve"), no un orden fijo OK>DEV que pintaba verdes las devoluciones.
+    @classmethod
+    def _clase_okdev(cls, texto):
+        """'ok', 'dev' o None (sin palabra clave de estado)."""
+        tl = (texto or "").lower()
+        pos = [(tl.find(k), "ok")  for k in cls.KW_OK  if k in tl] + \
+              [(tl.find(k), "dev") for k in cls.KW_DEV if k in tl]
+        return min(pos)[1] if pos else None
+
     # ── Categoría del resultado (para el resumen final) ─────────────────────
     @staticmethod
     def _categoria(result):
@@ -394,9 +373,10 @@ class ImagineBot(BaseBot):
             return ("No encontrados", "warn")
         if "errado" in r:
             return ("Errados", "warn")
-        if any(x in r for x in ImagineBot.KW_OK):
+        clase = ImagineBot._clase_okdev(result)
+        if clase == "ok":
             return ("Aprobados", "ok")
-        if any(x in r for x in ImagineBot.KW_DEV):
+        if clase == "dev":
             return ("Rechazados", "err")
         return ("Otros", "info")
 
@@ -461,16 +441,20 @@ class ImagineBot(BaseBot):
                 self.app.log(self, f"Hoja «{nombre}»: columna CASO no encontrada — omitida.", "error")
                 continue
             out_c = self._get_or_create_col(ws, self.v_out.get().strip().upper(), hdr)
+            # Solo se recorren las columnas necesarias (min_col/max_col): el
+            # formato fantasma a lo ancho de las plantillas hacía lento este
+            # escaneo en libros grandes (miles de celdas vacías por fila).
+            c1, c2 = min(cc, out_c), max(cc, out_c)
             jobs = []
-            for row in ws.iter_rows(min_row=hdr + 1):
-                cv = str(row[cc - 1].value).strip() if row[cc - 1].value else ""
-                ov = str(ws.cell(row=row[0].row, column=out_c).value).strip().upper() \
-                     if ws.cell(row=row[0].row, column=out_c).value else ""
+            for row in ws.iter_rows(min_row=hdr + 1, min_col=c1, max_col=c2):
+                cel_c, cel_o = row[cc - c1], row[out_c - c1]
+                cv = str(cel_c.value).strip() if cel_c.value else ""
+                ov = str(cel_o.value).strip().upper() if cel_o.value else ""
                 if cv and cv.upper() not in ("NONE", "NAN"):
                     # Vacía, PENDIENTE o ERROR (los errores de red se reintentan
                     # en la siguiente corrida sin borrar la celda a mano).
                     if not ov or ov == "PENDIENTE" or ov.startswith("ERROR"):
-                        jobs.append((row[0].row, cv))
+                        jobs.append((cel_c.row, cv))
             if jobs:
                 planes.append((nombre, ws, hdr, out_c, jobs))
             else:
@@ -485,87 +469,127 @@ class ImagineBot(BaseBot):
         self.app.log(self, f"{total} casos a procesar" +
                      (f" en {len(planes)} hojas." if multi else "."), "info")
         not_found = []
-        hecho = 0
 
         async with async_playwright() as pw:
-            browser = await pw.chromium.launch(headless=False, slow_mo=250)
-            estado  = self._nav_cargar()
-            try:
-                ctx = await browser.new_context(storage_state=estado) if estado \
-                      else await browser.new_context()
-            except Exception:
-                ctx = await browser.new_context()
+            # Sin slow_mo: todo el trabajo va por API (ctx.request) con la
+            # ventana minimizada — ese freno solo alargaba cada consulta.
+            browser = await pw.chromium.launch(headless=False)
+            ctx  = await browser.new_context()
             page = await ctx.new_page()
-            if estado:                  # sesión recordada: la ventana no hace falta
-                await self._nav_minimizar(ctx, page)
-            await page.goto(IMAGINE_BASE)
 
-            # ¿Sigue viva la sesión recordada? (sondeo barato; si no, login manual)
+            # Sin sesión recordada: siempre login manual al arrancar.
             viva = False
-            if estado:
-                try:
-                    await self._ajax(ctx, opcion="cargaInfoRadicacion",
-                                     na="1", cons="si", band="0")
-                    viva = True
-                    self.app.log(self, "Sesión de IMAGINE recordada — sin login manual.", "ok")
-                except Exception:
-                    self.app.log(self, "La sesión guardada expiró — inicia sesión de nuevo.", "info")
 
-            if not viva:
-                await self._nav_mostrar(ctx, page)      # el login manual sí necesita la ventana
+            async def login_manual():
+                """Muestra la ventana, espera el login del usuario y re-minimiza.
+                False si canceló/detuvo. La usa también el re-login a MITAD de
+                corrida, por eso la espera no bloquea el loop (executor)."""
+                await self._nav_mostrar(ctx, page)      # el login manual necesita la ventana
+                try:
+                    await page.goto(IMAGINE_BASE)
+                except Exception:
+                    pass
                 ev = threading.Event()
                 self.after(0, lambda: self._ask_ready(ev, "Imagine (solo inicia sesión — el bot navega solo)"))
-                ev.wait()
+                await asyncio.get_running_loop().run_in_executor(None, ev.wait)
                 if self._stop:
-                    await browser.close(); self.after(0, self._on_finish); return
-                try: self._nav_guardar(await ctx.storage_state())
-                except Exception: pass
+                    return False
                 await self._nav_minimizar(ctx, page)    # login listo: fuera del medio
+                return True
 
-            corte = False
+            if not viva:
+                if not await login_manual():
+                    await browser.close(); self.after(0, self._on_finish); return
+
+            # ── Corrida: CONCURRENCIA casos a la vez (asyncio, un solo hilo) ──
+            est = {"hecho": 0, "corte": False, "relogins": 0}
+            sem = asyncio.Semaphore(self.CONCURRENCIA)
+            ses_ok = asyncio.Event(); ses_ok.set()
+
+            async def relogin():
+                """Sesión caída a MITAD de corrida: la primera tarea que la
+                detecta pide el login; las demás esperan y reintentan. Lo ya
+                consultado no se pierde. False → abortar la tarea."""
+                if not ses_ok.is_set():             # otra tarea ya está en eso
+                    await ses_ok.wait()
+                    return not (self._stop or est["corte"])
+                ses_ok.clear()
+                try:
+                    est["relogins"] += 1
+                    if est["relogins"] > 3:
+                        est["corte"] = True
+                        self.app.log(self, "La sesión sigue caída tras varios intentos — proceso detenido.", "error")
+                        return False
+                    self.app.log(self, "Sesión expirada — vuelve a iniciar sesión para continuar "
+                                       "(lo ya consultado no se pierde).", "warn")
+                    if not await login_manual():
+                        est["corte"] = True
+                        return False
+                    return True
+                finally:
+                    ses_ok.set()
+
             nota_cols = {}                      # hoja → columna NOTAS (creada al 1er uso)
-            for nombre, ws, hdr, out_c, jobs in planes:
-                if self._stop or corte: break
-                if multi:
-                    self.app.log(self, f"— Hoja «{nombre}» ({len(jobs)} casos) —", "info")
-                for rn, caso in jobs:
-                    if self._stop: break
-                    hecho += 1
-                    pre = f"[{nombre}] " if multi else ""
-                    self.after(0, lambda h=hecho, c=caso, p=pre: (
+
+            async def uno(nombre, ws, hdr, out_c, rn, caso, pre):
+                async with sem:
+                    for intento in (1, 2, 3, 4):
+                        if self._stop or est["corte"]:
+                            return
+                        await ses_ok.wait()
+                        if self._stop or est["corte"]:
+                            return
+                        try:
+                            result, extra = await self._procesar_caso(ctx, caso)
+                            break
+                        except asyncio.CancelledError:
+                            raise
+                        except Exception as e:
+                            if self._stop or est["corte"]:
+                                return
+                            if "Sesión expirada" in str(e):
+                                if not await relogin():
+                                    return
+                                continue            # reintenta tras el login
+                            if intento == 1:        # blip de red: UN reintento
+                                self.app.log(self, f"  {caso}: {str(e)[:60]} — reintentando…", "warn")
+                                await asyncio.sleep(2)
+                                continue
+                            result, extra = f"ERROR: {str(e)[:80]}", ""
+                            self.app.log(self, str(e), "error")
+                            break
+                    else:
+                        return                      # agotó intentos sin resultado
+                    est["hecho"] += 1
+                    # La flecha se emite AL TERMINAR, pegada a su resultado (pedido
+                    # de Toxic 08-jul: con el paralelo, el inicio y el resultado se
+                    # separaban y el log se veía "sin actividad"). Entre la flecha y
+                    # el resultado no hay ningún await: nada puede colarse en medio.
+                    self.after(0, lambda h=est["hecho"], c=caso, p=pre: (
                         self._upd(h, total, f"{p}Caso {c}"),
                         self.app.log(self, f"→ Caso {c}", "info")
                     ))
-                    try:
-                        result, extra = await self._procesar_caso(ctx, caso)
-                    except Exception as e:
-                        if "Sesión expirada" in str(e):
-                            self.app.log(self, "Sesión expirada — proceso detenido. "
-                                               "Vuelve a iniciar sesión y reinicia.", "error")
-                            hecho -= 1
-                            corte = True
-                            break
-                        result, extra = f"ERROR: {str(e)[:80]}", ""
-                        self.app.log(self, str(e), "error")
 
                     self._res_add(*self._categoria(result))
                     if result is None:
                         self.app.log(self, f"  {caso}: PENDIENTE — omitido", "warn")
-                        continue
+                        return
 
                     cell = ws.cell(row=rn, column=out_c)
                     cell.value = result
                     self._autosave_dirty = True
                     rl = result.lower()
-                    if any(x in rl for x in self.KW_OK):
-                        self.pintar(cell, "imagine", "ok")
-                    elif any(x in rl for x in self.KW_DEV):
-                        self.pintar(cell, "imagine", "dev")
+                    clase = self._clase_okdev(result)   # gana la palabra que sale PRIMERO
+                    if clase == "ok":
+                        cl, lvl = "ok", "ok"
+                    elif clase == "dev":
+                        cl, lvl = "dev", "error"        # devolución = rojo (antes salía verde)
                     elif any(x in rl for x in ["errado", "no encontrado", "error"]):
-                        self.pintar(cell, "imagine", "err")
+                        cl, lvl = "err", "error" if "no encontrado" in rl else "warn"
                         if "no encontrado" in rl: not_found.append(caso)
                     else:
-                        self.pintar(cell, "imagine", "otros")
+                        cl, lvl = "otros", "info"
+                    self.pintar(cell, "imagine", cl)
 
                     # Nota(s) adicionales de la misma gestión → columna NOTAS
                     # pegada a la salida (se inserta sin pisar lo que haya).
@@ -575,22 +599,33 @@ class ImagineBot(BaseBot):
                         c2 = ws.cell(row=rn, column=nota_cols[nombre], value=extra)
                         self.pintar(c2, "imagine", "nota")
 
-                    self.app.log(self, f"  {caso}: {result[:80]}",
-                                 "error" if "no encontrado" in rl else "ok")
+                    # Registro: texto COMPLETO (sin recorte) y chip del MISMO color
+                    # que la celda (Toxic 08-jul: "completa y del color que es").
+                    chip = self._chip("imagine", cl, result)
+                    self.app.log(self, f"  {caso}: " if chip else f"  {caso}: {result}",
+                                 lvl, chip=chip)
                     if extra:
-                        self.app.log(self, f"  {caso}: nota adicional → {extra[:70]}", "warn")
-                    if hecho % self.AUTOSAVE_CADA == 0:
+                        nchip = self._chip("imagine", "nota", extra)
+                        self.app.log(self, f"  {caso}: nota adicional → " if nchip
+                                     else f"  {caso}: nota adicional → {extra}", "warn", chip=nchip)
+                    if est["hecho"] % self.AUTOSAVE_CADA == 0:
                         self._autosave(force=False)
 
+            for nombre, ws, hdr, out_c, jobs in planes:
+                if self._stop or est["corte"]: break
+                if multi:
+                    self.app.log(self, f"— Hoja «{nombre}» ({len(jobs)} casos) —", "info")
+                pre = f"[{nombre}] " if multi else ""
+                await asyncio.gather(*(uno(nombre, ws, hdr, out_c, rn, caso, pre)
+                                       for rn, caso in jobs))
+
             self._autosave()
-            try: self._nav_guardar(await ctx.storage_state())
-            except Exception: pass
             await browser.close()
 
         if not_found:
             self.app.log(self, f"No encontrados: {', '.join(not_found)}", "warn")
-        self._res_fin(hecho)
-        self.app.log(self, f"Listo. {hecho}/{total} procesados.", "ok")
+        self._res_fin(est["hecho"])
+        self.app.log(self, f"Listo. {est['hecho']}/{total} procesados.", "ok")
         self.after(0, self._on_finish)
 
     # ── Lógica de un caso (protocolo AJAX directo — verificado en el sitio) ──
@@ -693,6 +728,11 @@ class ImagineBot(BaseBot):
         dia = estado[0][:10]
         vistos, extras = {estado[1]}, []
         for fecha, texto in obs:
+            tl = texto.lower()
+            if any(k in tl for k in self.KW_OK + self.KW_DEV):
+                continue    # estados VIEJOS (p.ej. varios "Se devuelve…" acumulados):
+                            # solo vale el más reciente, ya elegido arriba — las notas
+                            # no los repiten (pedido de Toxic 08-jul: "metió 3")
             if fecha[:10] >= dia and texto not in vistos:
                 extras.append(texto); vistos.add(texto)
         return estado[1], " | ".join(extras)
@@ -713,6 +753,8 @@ class GuardianBot(BaseBot):
             return ("No encontrados", "warn")
         if "RECHAZADO" in ru:
             return ("Rechazados", "err")
+        if "NO REQUIERE" in ru:               # "NO REQUIERE APROBACIÓN": antes caía
+            return ("No requiere aprobación", "ok")   # en "Otros" (la celda sí iba amarilla)
         if "PENDIENTE" in ru:
             return ("Pendientes", "warn")
         if "APROBADO" in ru:
@@ -754,16 +796,19 @@ class GuardianBot(BaseBot):
             out_c = self._get_or_create_col(ws, self.v_out.get().strip().upper(), hdr)
             self.app.log(self, f"Hoja «{nombre}»: encabezado fila {hdr} | CRON col {cc} | "
                                f"SEC col {sc} | salida col {out_c}", "info")
+            # Solo se recorren las columnas necesarias (min_col/max_col): el
+            # formato fantasma a lo ancho hacía lento este escaneo (punto 10).
+            c1, c2 = min(cc, sc, out_c), max(cc, sc, out_c)
             jobs = []
-            for row in ws.iter_rows(min_row=hdr + 1):
-                cv = str(row[cc - 1].value).strip() if row[cc - 1].value else ""
-                sv = str(row[sc - 1].value).strip() if row[sc - 1].value else ""
-                ov = str(ws.cell(row=row[0].row, column=out_c).value).strip().upper() \
-                     if ws.cell(row=row[0].row, column=out_c).value else ""
+            for row in ws.iter_rows(min_row=hdr + 1, min_col=c1, max_col=c2):
+                cel_c, cel_s, cel_o = row[cc - c1], row[sc - c1], row[out_c - c1]
+                cv = str(cel_c.value).strip() if cel_c.value else ""
+                sv = str(cel_s.value).strip() if cel_s.value else ""
+                ov = str(cel_o.value).strip().upper() if cel_o.value else ""
                 if cv and sv and cv.upper() not in ("NONE", "NAN", ""):
                     # Vacía, PENDIENTE o ERROR (se reintentan en la siguiente corrida)
                     if not ov or "PENDIENTE" in ov or ov.startswith("ERROR"):
-                        jobs.append((row[0].row, cv, sv))
+                        jobs.append((cel_c.row, cv, sv))
             if jobs:
                 planes.append((nombre, ws, out_c, jobs))
             else:
@@ -778,56 +823,35 @@ class GuardianBot(BaseBot):
         self.app.log(self, f"{total} filas a procesar" +
                      (f" en {len(planes)} hojas." if multi else "."), "info")
         no_resultado = []
-        hecho = 0
 
         async with async_playwright() as pw:
-            browser = await pw.chromium.launch(headless=False, slow_mo=200)
-            estado  = self._nav_cargar()
-            try:
-                ctx = await browser.new_context(storage_state=estado) if estado \
-                      else await browser.new_context()
-            except Exception:
-                ctx = await browser.new_context()
+            # Sin slow_mo: el trabajo va por API con la ventana minimizada.
+            browser = await pw.chromium.launch(headless=False)
+            ctx  = await browser.new_context()
             page = await ctx.new_page()
-            if estado:                  # sesión recordada: la ventana no hace falta
-                await self._nav_minimizar(ctx, page)
 
-            # ¿Sigue viva la sesión recordada? (sondeo a la API; si no, login manual)
-            tok = uid = ""
-            hdrs = None
+            # Credenciales vivas de la corrida (el re-login las renueva en caliente)
+            g = {"hdrs": None, "uid": ""}
+
+            # Sin sesión recordada: siempre login manual al arrancar.
             viva = False
-            if estado:
-                cookies = {c["name"]: c["value"]
-                           for c in await ctx.cookies("https://www.guardiandelaproductividad.com")}
-                tok, uid = self._tok_uid(cookies)
-                if tok and uid.isdigit():
-                    hdrs = {"Authorization": f"Bearer {tok}", "Content-Type": "application/json"}
-                    # Sondeo con el primer caso real (solo consulta, no escribe)
-                    _c0 = str(planes[0][3][0][1]).split(".")[0].strip()
-                    _s0 = str(planes[0][3][0][2]).split(".")[0].strip()
-                    try:
-                        r = await ctx.request.get(
-                            f"{GUARDIAN_API}/plan-trabajo-anual/api/v1/cronograma-actividades-proveedor",
-                            params={"scheduleNumber": _c0, "sequenceNumber": _s0, "userId": uid,
-                                    "size": 1, "page": 0, "sortDirection": "asc"},
-                            headers=hdrs, timeout=15000)
-                        viva = r.status == 200
-                    except Exception:
-                        viva = False
-                if viva:
-                    self.app.log(self, "Sesión de GUARDIÁN recordada — sin login manual.", "ok")
-                else:
-                    self.app.log(self, "La sesión guardada expiró — inicia sesión de nuevo.", "info")
 
-            if not viva:
+            async def login_manual():
+                """Ventana + login del usuario; extrae token/usuario, guarda la
+                sesión y re-minimiza. False si canceló o la sesión no sirve.
+                La usa también el re-login a MITAD de corrida (espera en
+                executor para no bloquear el loop)."""
                 await self._nav_mostrar(ctx, page)      # el login manual sí necesita la ventana
-                await page.goto("https://www.guardiandelaproductividad.com/login/signin",
-                                timeout=60000, wait_until="domcontentloaded")
+                try:
+                    await page.goto("https://www.guardiandelaproductividad.com/login/signin",
+                                    timeout=60000, wait_until="domcontentloaded")
+                except Exception:
+                    pass
                 ev = threading.Event()
                 self.after(0, lambda: self._ask_ready(ev, "Guardián (solo inicia sesión — el bot consulta por API)"))
-                ev.wait()
+                await asyncio.get_running_loop().run_in_executor(None, ev.wait)
                 if self._stop:
-                    await browser.close(); self.after(0, self._on_finish); return
+                    return False
 
                 # Token y usuario desde las cookies de la sesión iniciada
                 cookies = {c["name"]: c["value"]
@@ -835,40 +859,81 @@ class GuardianBot(BaseBot):
                 tok, uid = self._tok_uid(cookies)
                 if not uid.isdigit():
                     self.app.log(self, f"user_id no reconocido: {uid!r}", "error")
-                    await browser.close(); self.after(0, self._on_finish); return
+                    return False
                 if not tok or not uid:
                     self.app.log(self, "No se encontró la sesión — ¿iniciaste sesión?", "error")
-                    await browser.close(); self.after(0, self._on_finish); return
-                hdrs = {"Authorization": f"Bearer {tok}", "Content-Type": "application/json"}
-                try: self._nav_guardar(await ctx.storage_state())
-                except Exception: pass
+                    return False
+                g["hdrs"] = {"Authorization": f"Bearer {tok}", "Content-Type": "application/json"}
+                g["uid"] = uid
                 await self._nav_minimizar(ctx, page)    # login listo: fuera del medio
+                return True
 
-            self.app.log(self, f"Sesión OK (usuario {uid}) — consultando por API…", "ok")
+            if not viva:
+                if not await login_manual():
+                    await browser.close(); self.after(0, self._on_finish); return
 
-            corte = False
-            for nombre, ws, out_c, jobs in planes:
-                if self._stop or corte: break
-                if multi:
-                    self.app.log(self, f"— Hoja «{nombre}» ({len(jobs)} filas) —", "info")
-                for rn, cron, sec in jobs:
-                    if self._stop: break
-                    hecho += 1
-                    pre = f"[{nombre}] " if multi else ""
-                    self.after(0, lambda h=hecho, c=cron, s=sec, p=pre:
+            self.app.log(self, f"Sesión OK (usuario {g['uid']}) — consultando por API…", "ok")
+
+            # ── Corrida: CONCURRENCIA filas a la vez (asyncio, un solo hilo) ──
+            est = {"hecho": 0, "corte": False, "relogins": 0}
+            sem = asyncio.Semaphore(self.CONCURRENCIA)
+            ses_ok = asyncio.Event(); ses_ok.set()
+
+            async def relogin():
+                """Sesión caída a MITAD de corrida: una sola tarea pide el login;
+                las demás esperan y reintentan. Lo procesado no se pierde."""
+                if not ses_ok.is_set():             # otra tarea ya está en eso
+                    await ses_ok.wait()
+                    return not (self._stop or est["corte"])
+                ses_ok.clear()
+                try:
+                    est["relogins"] += 1
+                    if est["relogins"] > 3:
+                        est["corte"] = True
+                        self.app.log(self, "La sesión sigue caída tras varios intentos — proceso detenido.", "error")
+                        return False
+                    self.app.log(self, "Sesión expirada — vuelve a iniciar sesión para continuar "
+                                       "(lo ya consultado no se pierde).", "warn")
+                    if not await login_manual():
+                        est["corte"] = True
+                        return False
+                    return True
+                finally:
+                    ses_ok.set()
+
+            async def uno(nombre, ws, out_c, rn, cron, sec, pre):
+                async with sem:
+                    for intento in (1, 2, 3, 4):
+                        if self._stop or est["corte"]:
+                            return
+                        await ses_ok.wait()
+                        if self._stop or est["corte"]:
+                            return
+                        try:
+                            result = await self._procesar_fila_api(ctx, g["hdrs"], g["uid"], cron, sec)
+                            break
+                        except asyncio.CancelledError:
+                            raise
+                        except Exception as e:
+                            if self._stop or est["corte"]:
+                                return
+                            if "Sesión expirada" in str(e):
+                                if not await relogin():
+                                    return
+                                continue            # reintenta tras el login
+                            if intento == 1:        # blip de red: UN reintento
+                                self.app.log(self, f"{cron}/{sec}: {str(e)[:60]} — reintentando…", "warn")
+                                await asyncio.sleep(2)
+                                continue
+                            result = f"ERROR: {str(e)[:80]}"
+                            self.app.log(self, result, "error")
+                            break
+                    else:
+                        return                      # agotó intentos sin resultado
+                    est["hecho"] += 1
+                    self.after(0, lambda h=est["hecho"], c=cron, s=sec, p=pre:
                         self._upd(h, total, f"{p}Cron {c} / Sec {s}")
                     )
-                    try:
-                        result = await self._procesar_fila_api(ctx, hdrs, uid, cron, sec)
-                    except Exception as e:
-                        if "Sesión expirada" in str(e):
-                            self.app.log(self, "Sesión expirada — proceso detenido. "
-                                               "Vuelve a iniciar sesión y reinicia.", "error")
-                            hecho -= 1
-                            corte = True
-                            break
-                        result = f"ERROR: {str(e)[:80]}"
-                        self.app.log(self, result, "error")
 
                     self._res_add(*self._categoria(result))
                     cell = ws.cell(row=rn, column=out_c)
@@ -876,35 +941,44 @@ class GuardianBot(BaseBot):
                     self._autosave_dirty = True
                     ru = result.upper()
                     if "RECHAZADO" in ru:
-                        self.pintar(cell, "guardian", "rechazado"); lvl = "error"
+                        cl, lvl = "rechazado", "error"
                     elif "NO REQUIERE" in ru:
-                        self.pintar(cell, "guardian", "noreq");     lvl = "ok"
+                        cl, lvl = "noreq", "ok"
                     elif "PENDIENTE" in ru:
-                        self.pintar(cell, "guardian", "pendiente"); lvl = "warn"
+                        cl, lvl = "pendiente", "warn"
                     elif "APROBADO" in ru:
-                        self.pintar(cell, "guardian", "aprobado");  lvl = "ok"
+                        cl, lvl = "aprobado", "ok"
                     elif "NO HAY INFORME" in ru or "NO NECESITA" in ru:
-                        self.pintar(cell, "guardian", "noinf");     lvl = "warn"
+                        cl, lvl = "noinf", "warn"
                     elif "NO ENCONTR" in ru or "ACTIVIDAD NO" in ru:
-                        self.pintar(cell, "guardian", "noenc")
-                        no_resultado.append(f"{cron}/{sec}"); lvl = "error"
+                        cl, lvl = "noenc", "error"
+                        no_resultado.append(f"{cron}/{sec}")
                     else:
-                        self.pintar(cell, "guardian", "otros")
-                        lvl = "orange"   # estado desconocido → visible, nunca gris
+                        cl, lvl = "otros", "orange"   # estado desconocido → visible, nunca gris
+                    self.pintar(cell, "guardian", cl)
 
-                    self.app.log(self, f"{cron}/{sec}: {result}", lvl)
-                    if hecho % self.AUTOSAVE_CADA == 0:
+                    # Registro con chip del MISMO color que la celda (Toxic 08-jul)
+                    chip = self._chip("guardian", cl, result)
+                    self.app.log(self, f"{cron}/{sec}: " if chip else f"{cron}/{sec}: {result}",
+                                 lvl, chip=chip)
+                    if est["hecho"] % self.AUTOSAVE_CADA == 0:
                         self._autosave(force=False)
 
+            for nombre, ws, out_c, jobs in planes:
+                if self._stop or est["corte"]: break
+                if multi:
+                    self.app.log(self, f"— Hoja «{nombre}» ({len(jobs)} filas) —", "info")
+                pre = f"[{nombre}] " if multi else ""
+                await asyncio.gather(*(uno(nombre, ws, out_c, rn, cron, sec, pre)
+                                       for rn, cron, sec in jobs))
+
             self._autosave()
-            try: self._nav_guardar(await ctx.storage_state())
-            except Exception: pass
             await browser.close()
 
         if no_resultado:
             self.app.log(self, f"Sin resultado ({len(no_resultado)}): {', '.join(no_resultado)}", "warn")
-        self._res_fin(hecho)
-        self.app.log(self, f"Listo. {hecho}/{total} procesados.", "ok")
+        self._res_fin(est["hecho"])
+        self.app.log(self, f"Listo. {est['hecho']}/{total} procesados.", "ok")
         self.after(0, self._on_finish)
 
     # ── Lógica de una fila (API directa — descubierta del sitio real) ───────

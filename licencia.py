@@ -353,8 +353,12 @@ def restaurar_sesion():
     st, j = _post("/auth/v1/token?grant_type=refresh_token", {"refresh_token": rt})
     if st == 200:
         return _sesion_desde(j)
-    _borrar("refresh")          # token revocado/expirado → pedirá login
-    return None
+    if st in (400, 401, 403):
+        _borrar("refresh")      # token revocado/expirado de verdad → pedirá login
+        return None
+    # 5xx/429: falló el SERVIDOR, no el token — no desloguear al usuario por un
+    # blip de Supabase (antes esto borraba el refresh y pedía contraseña).
+    raise LicenciaError(f"El servidor de licencias respondió {st}.")
 
 
 def cerrar_sesion():
