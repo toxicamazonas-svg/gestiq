@@ -3,110 +3,355 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Descarga Gestiq para Windows o Mac — automatiza IMAGINE y GUARDIAN con resultados directo en tu Excel.">
+<meta name="theme-color" content="#101018" id="metaTema">
 <title>Gestiq — Descargas</title>
 <style>
+  /* ═══ Gestiq · sistema "Cristal Disciplinado" llevado al máximo · ver DESIGN.md ═══ */
   :root {
-    --bg: #15151F;
-    --card: #1C1C2A;
-    --accent: #00B050;
-    --accent2: #2FD877;
-    --text: #EDEDF5;
-    --muted: #9A9FB4;
-    --glass-brd: rgba(255, 255, 255, .09);
-    --spring: cubic-bezier(.32, 1.25, .4, 1);
-    --suave: cubic-bezier(.22, 1, .36, 1);
+    --bg:#101018; --card-op:#1A1A24;
+    --glass:rgba(255,255,255,.055); --inner:rgba(255,255,255,.045);
+    --glass-brd:rgba(255,255,255,.10); --brd2:rgba(255,255,255,.16);
+    --text:#F2F3F8; --muted:#A6ABC2; --text3:#6E7389;
+    --accent:#2BD983; --accent-deep:#0FA65C; --on-brand:#052616;
+    --tint-ok:rgba(43,217,131,.12);
+    --grad:linear-gradient(160deg, var(--accent), var(--accent-deep));
+    --sombra-cta:0 5px 16px rgba(43,217,131,.28);
+    --somb-card:0 16px 44px rgba(0,0,0,.32);
+    --somb-hover:0 24px 60px rgba(0,0,0,.40);
+    --header-bg:rgba(16,16,24,.55); --header-solid:rgba(16,16,24,.90);
+    --lineas:rgba(255,255,255,.045);
+    --aur-op:.55;
+    --r-m:14px; --r-l:22px;
+    --spring:cubic-bezier(.32,1.25,.4,1); --suave:cubic-bezier(.22,1,.36,1);
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body.claro {
+    --bg:#F2F3F6; --card-op:#FFFFFF;
+    --glass:rgba(255,255,255,.66); --inner:rgba(22,24,31,.05);
+    --glass-brd:rgba(22,24,31,.10); --brd2:rgba(22,24,31,.18);
+    --text:#16181F; --muted:#565C6E; --text3:#868CA0;
+    --accent:#0FA65C; --accent-deep:#0B7A45; --on-brand:#FFFFFF;
+    --tint-ok:rgba(15,166,92,.13);
+    --sombra-cta:0 5px 16px rgba(15,166,92,.30);
+    --somb-card:0 16px 44px rgba(25,30,40,.10);
+    --somb-hover:0 24px 60px rgba(25,30,40,.15);
+    --header-bg:rgba(255,255,255,.65); --header-solid:rgba(245,246,248,.94);
+    --lineas:rgba(22,24,31,.055);
+    --aur-op:.40;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg); color: var(--text);
-    min-height: 100vh; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; padding: 24px;
-    -webkit-font-smoothing: antialiased; overflow-x: hidden;
+    font-family:-apple-system,"SF Pro Display","Segoe UI Variable","Segoe UI",Inter,Roboto,sans-serif;
+    background:var(--bg); color:var(--text); min-height:100vh;
+    -webkit-font-smoothing:antialiased; overflow-x:hidden;
   }
-  body::before {
-    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-    background:
-      radial-gradient(760px 480px at 78% -10%, rgba(0,176,80,.16), transparent 62%),
-      radial-gradient(680px 440px at -10% 30%, rgba(0,199,91,.09), transparent 60%),
-      radial-gradient(820px 520px at 55% 115%, rgba(47,216,119,.08), transparent 62%);
+  ::view-transition-old(root), ::view-transition-new(root) { animation:none; mix-blend-mode:normal; }
+  .bi { width:16px; height:16px; flex:none; stroke:currentColor; fill:none;
+        stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  :focus { outline:none; }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:6px; }
+  .wrap { max-width:1120px; margin:0 auto; padding:0 24px 70px; position:relative; z-index:1;
+          display:flex; flex-direction:column; align-items:center; }
+  @media (max-width:480px) { .wrap { padding:0 16px 56px; } }
+
+  /* ── Fondo espectáculo: aurora + rejilla + partículas ── */
+  .aurora { position:fixed; inset:0; z-index:-3; overflow:hidden; pointer-events:none; }
+  .aurora span { position:absolute; border-radius:50%; filter:blur(90px); opacity:var(--aur-op); will-change:transform; }
+  .aurora .a1 { width:58vmax; height:58vmax; top:-24vmax; right:-16vmax;
+    background:radial-gradient(circle, rgba(43,217,131,.34), transparent 65%);
+    animation:flota1 26s ease-in-out infinite alternate; }
+  .aurora .a2 { width:46vmax; height:46vmax; top:22vh; left:-20vmax;
+    background:radial-gradient(circle, rgba(59,130,246,.20), transparent 65%);
+    animation:flota2 32s ease-in-out infinite alternate; }
+  .aurora .a3 { width:52vmax; height:52vmax; bottom:-26vmax; left:32vw;
+    background:radial-gradient(circle, rgba(15,166,92,.28), transparent 65%);
+    animation:flota3 38s ease-in-out infinite alternate; }
+  @keyframes flota1 { to { transform:translate(-16vw, 12vh) scale(1.22) rotate(28deg); } }
+  @keyframes flota2 { to { transform:translate(14vw, -10vh) scale(1.15) rotate(-22deg); } }
+  @keyframes flota3 { to { transform:translate(-12vw, -14vh) scale(1.25) rotate(18deg); } }
+  .grid-fondo {
+    position:fixed; inset:0; z-index:-2; pointer-events:none;
+    background-image:linear-gradient(var(--lineas) 1px, transparent 1px),
+                     linear-gradient(90deg, var(--lineas) 1px, transparent 1px);
+    background-size:44px 44px;
+    -webkit-mask:radial-gradient(ellipse 95% 62% at 50% 0%, #000 28%, transparent 76%);
+    mask:radial-gradient(ellipse 95% 62% at 50% 0%, #000 28%, transparent 76%);
   }
-  @keyframes sube { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-  .logo, h1, .sub, .version, .cards, .nota, footer { animation: sube .7s var(--suave) backwards; }
-  .cards { animation-delay: .1s; }
-  .nota { animation-delay: .2s; }
-  footer { animation-delay: .25s; }
-  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  .pts { position:fixed; inset:0; z-index:-1; pointer-events:none; overflow:hidden;
+    -webkit-mask:linear-gradient(#000 72%, transparent); mask:linear-gradient(#000 72%, transparent); }
+  .pts span { position:absolute; bottom:-14px; border-radius:50%;
+    background:var(--accent); box-shadow:0 0 10px var(--accent);
+    animation:asciende linear infinite; will-change:transform; }
+  @keyframes asciende { from { transform:translateY(0); } to { transform:translateY(-110vh); } }
+
+  /* ── Animación de entrada ── */
+  @keyframes sube { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:none; } }
+  header, .hero-dl, .cards, .cta-planes, .nota, footer { animation:sube .7s var(--suave) backwards; }
+  .hero-dl { animation-delay:.05s; }
+  .cards { animation-delay:.14s; }
+  .cta-planes { animation-delay:.22s; }
+  .nota { animation-delay:.28s; }
+  footer { animation-delay:.32s; }
+
+  /* ── Header (vidrio flotante, pegajoso) ── */
+  header {
+    position:sticky; top:12px; z-index:50; width:100%;
+    display:flex; align-items:center; gap:10px;
+    margin-top:16px; padding:9px 10px 9px 14px; border-radius:99px;
+    background:var(--header-bg);
+    backdrop-filter:blur(24px) saturate(160%); -webkit-backdrop-filter:blur(24px) saturate(160%);
+    border:1px solid var(--glass-brd);
+    box-shadow:0 10px 32px rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.08);
+    transition:transform .5s var(--suave), background .35s, box-shadow .35s;
+  }
+  .hlogo {
+    width:34px; height:34px; border-radius:10px; background:var(--grad);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 3px 10px rgba(43,217,131,.30);
+    display:flex; align-items:center; justify-content:center;
+    font-size:17px; font-weight:700; color:var(--on-brand);
+  }
+  .brand { font-size:1.05rem; font-weight:700; letter-spacing:-.01em; }
+  .hgap { flex:1; }
+  .hbtn {
+    display:inline-flex; align-items:center; gap:8px;
+    background:var(--grad); color:var(--on-brand); text-decoration:none;
+    font-size:.84rem; font-weight:700; padding:10px 18px; border-radius:99px;
+    box-shadow:var(--sombra-cta), inset 0 1px 0 rgba(255,255,255,.28);
+    position:relative; overflow:hidden;
+    transition:transform .45s var(--spring), box-shadow .3s, filter .25s;
+  }
+  .hbtn::after {
+    content:""; position:absolute; top:0; left:-70%; width:45%; height:100%;
+    transform:skewX(-22deg); pointer-events:none;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,.38), transparent);
+  }
+  .hbtn:hover { transform:translateY(-1px); filter:brightness(1.06); }
+  .hbtn:hover::after { left:130%; transition:left .55s ease; }
+  .hbtn:active { transform:scale(.96); }
+  @media (max-width:480px) { .hbtn span { display:none; } .hbtn { padding:10px 13px; } }
+  .btn-tema {
+    width:36px; height:36px; border-radius:99px; border:1px solid var(--glass-brd);
+    background:var(--inner); cursor:pointer; color:var(--muted); flex:none;
+    display:flex; align-items:center; justify-content:center;
+    transition:transform .5s var(--spring), background .25s, color .25s, border-color .25s;
+  }
+  .btn-tema:hover { transform:rotate(40deg) scale(1.08); background:var(--tint-ok); color:var(--accent); border-color:var(--brd2); }
+  .btn-tema .bi { width:15px; height:15px; }
+
+  /* ── Hero de descarga ── */
+  .hero-dl { text-align:center; padding:52px 0 8px; display:flex; flex-direction:column; align-items:center; }
   .logo {
-    width: 72px; height: 72px; border-radius: 20px;
-    background: linear-gradient(145deg, #00C75B, #009A46);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 12px 32px rgba(0,176,80,.35);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 34px; font-weight: 800; color: #fff; margin-bottom: 20px;
+    width:82px; height:82px; border-radius:22px; background:var(--grad);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.4), 0 14px 38px rgba(43,217,131,.35);
+    display:flex; align-items:center; justify-content:center;
+    font-size:38px; font-weight:800; color:var(--on-brand); margin-bottom:22px;
+    animation:flotar 5s ease-in-out infinite alternate;
+    position:relative;
   }
-  h1 { font-size: 2rem; margin-bottom: 8px; text-align: center; letter-spacing: -.5px; }
-  .sub { color: var(--muted); margin-bottom: 6px; text-align: center; max-width: 480px; }
-  .version { color: var(--accent2); font-size: .9rem; margin-bottom: 32px; min-height: 1.2em; }
-  .cards { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+  .logo::after {
+    content:""; position:absolute; inset:-14px; border-radius:32px; z-index:-1;
+    background:radial-gradient(circle, rgba(43,217,131,.28), transparent 70%);
+    animation:latido 3.2s ease-in-out infinite;
+  }
+  @keyframes flotar { from { transform:translateY(0); } to { transform:translateY(-9px); } }
+  @keyframes latido {
+    0%,100% { opacity:.5; transform:scale(.96); }
+    50%     { opacity:1;  transform:scale(1.06); }
+  }
+  h1 { font-size:clamp(1.9rem, 4.6vw, 2.7rem); font-weight:800; letter-spacing:-.035em; line-height:1.12; }
+  h1 .gradtx {
+    background:linear-gradient(90deg, var(--text) 0%, var(--accent) 30%, var(--accent-deep) 55%, var(--text) 80%);
+    background-size:220% 100%;
+    -webkit-background-clip:text; background-clip:text;
+    -webkit-text-fill-color:transparent; color:transparent;
+    animation:brillo 6s linear infinite;
+  }
+  @keyframes brillo { to { background-position:-220% 0; } }
+  .sub { color:var(--muted); margin-top:12px; text-align:center; max-width:520px; font-size:1rem; line-height:1.6; }
+  .version {
+    display:inline-flex; align-items:center; gap:8px; margin-top:18px; min-height:2.1em;
+    color:var(--accent); font-size:.85rem; font-weight:700;
+  }
+  .version:not(:empty) {
+    background:var(--tint-ok); border:1px solid rgba(43,217,131,.30);
+    padding:7px 15px; border-radius:99px;
+    animation:latido2 3.2s ease-in-out infinite;
+  }
+  @keyframes latido2 {
+    0%,100% { box-shadow:0 0 12px rgba(43,217,131,.10); }
+    50%     { box-shadow:0 0 28px rgba(43,217,131,.28); }
+  }
+
+  /* ── Tarjetas de descarga (vidrio + spotlight + aro animado) ── */
+  .cards { display:flex; gap:20px; flex-wrap:wrap; justify-content:center; margin-top:34px; perspective:1100px; }
   .card {
-    background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015) 45%), rgba(28,28,42,.55);
-    backdrop-filter: blur(24px) saturate(150%);
-    -webkit-backdrop-filter: blur(24px) saturate(150%);
-    border-radius: 22px; padding: 28px;
-    width: 290px; text-align: center; border: 1px solid var(--glass-brd);
-    box-shadow: 0 16px 44px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.08);
-    transition: transform .5s var(--spring), border-color .3s, box-shadow .5s var(--suave);
+    position:relative;
+    background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015) 45%), var(--glass);
+    backdrop-filter:blur(24px) saturate(160%); -webkit-backdrop-filter:blur(24px) saturate(160%);
+    border-radius:var(--r-l); padding:30px 28px;
+    width:300px; text-align:center; border:1px solid var(--glass-brd);
+    box-shadow:var(--somb-card), inset 0 1px 0 rgba(255,255,255,.08);
+    transition:transform .5s var(--spring), border-color .3s, box-shadow .5s var(--suave);
   }
+  .card::after {
+    content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+    opacity:0; transition:opacity .4s ease;
+    background:radial-gradient(380px circle at var(--mx,50%) var(--my,50%), rgba(43,217,131,.12), transparent 62%);
+  }
+  .card:hover::after { opacity:1; }
   .card:hover {
-    transform: translateY(-5px); border-color: rgba(255,255,255,.16);
-    box-shadow: 0 24px 60px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.1);
+    transform:translateY(-5px); border-color:var(--brd2);
+    box-shadow:var(--somb-hover), inset 0 1px 0 rgba(255,255,255,.1);
   }
   .card.destacada {
-    background: linear-gradient(180deg, rgba(0,199,91,.12), rgba(255,255,255,.02) 45%), rgba(33,33,49,.58);
-    border-color: rgba(0,199,91,.45);
-    box-shadow: 0 18px 52px rgba(0,0,0,.4), 0 0 36px rgba(0,176,80,.12), inset 0 1px 0 rgba(255,255,255,.12);
+    background:linear-gradient(180deg, rgba(43,217,131,.12), rgba(255,255,255,.02) 45%), var(--glass);
+    border-color:rgba(43,217,131,.45);
+    box-shadow:var(--somb-card), 0 0 36px rgba(43,217,131,.12), inset 0 1px 0 rgba(255,255,255,.12);
   }
   .card.destacada:hover {
-    border-color: rgba(0,199,91,.7);
-    box-shadow: 0 26px 64px rgba(0,0,0,.45), 0 0 46px rgba(0,176,80,.2), inset 0 1px 0 rgba(255,255,255,.14);
+    border-color:rgba(43,217,131,.7);
+    box-shadow:var(--somb-hover), 0 0 46px rgba(43,217,131,.2), inset 0 1px 0 rgba(255,255,255,.14);
   }
-  .os-icon { font-size: 42px; margin-bottom: 10px; }
-  .card h2 { font-size: 1.15rem; margin-bottom: 6px; }
-  .card p { color: var(--muted); font-size: .85rem; margin-bottom: 18px; }
+  @property --ang { syntax:'<angle>'; initial-value:0deg; inherits:false; }
+  .card.destacada::before {
+    content:""; position:absolute; inset:-1px; border-radius:inherit; padding:1.6px;
+    background:conic-gradient(from var(--ang),
+      transparent 0deg, var(--accent) 40deg, transparent 110deg,
+      transparent 180deg, var(--accent-deep) 230deg, transparent 300deg);
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor; mask-composite:exclude;
+    pointer-events:none; animation:gira 5s linear infinite;
+  }
+  @keyframes gira { to { --ang:360deg; } }
+  .os-icon { font-size:44px; margin-bottom:10px; }
+  .card h2 { font-size:1.15rem; margin-bottom:6px; }
+  .card p { color:var(--muted); font-size:.85rem; margin-bottom:18px; }
   .btn {
-    display: inline-block; padding: 12px 26px; border-radius: 99px;
-    background: linear-gradient(180deg, #00C75B, var(--accent));
-    color: #fff; text-decoration: none; font-weight: 600;
-    box-shadow: 0 6px 20px rgba(0,176,80,.3), inset 0 1px 0 rgba(255,255,255,.3);
-    transition: transform .45s var(--spring), box-shadow .35s, filter .25s;
+    display:inline-flex; align-items:center; gap:9px; padding:13px 26px; border-radius:99px;
+    background:var(--grad); color:var(--on-brand); text-decoration:none; font-weight:700;
+    box-shadow:var(--sombra-cta), inset 0 1px 0 rgba(255,255,255,.3);
+    position:relative; overflow:hidden;
+    transition:transform .45s var(--spring), box-shadow .35s, filter .25s;
   }
-  .btn:hover { transform: translateY(-2px) scale(1.015); box-shadow: 0 10px 28px rgba(0,176,80,.42), inset 0 1px 0 rgba(255,255,255,.32); filter: brightness(1.05); }
-  .btn:active { transform: translateY(0) scale(.96); }
+  .btn::after {
+    content:""; position:absolute; top:0; left:-70%; width:45%; height:100%;
+    transform:skewX(-22deg); pointer-events:none;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,.38), transparent);
+  }
+  .btn:hover { transform:translateY(-2px) scale(1.015); box-shadow:0 10px 28px rgba(43,217,131,.42), inset 0 1px 0 rgba(255,255,255,.32); filter:brightness(1.05); }
+  .btn:hover::after { left:130%; transition:left .55s ease; }
+  .btn:active { transform:translateY(0) scale(.96); }
   .btn.sec {
-    background: rgba(255,255,255,.07); color: var(--text);
-    border: 1px solid var(--glass-brd);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+    background:var(--inner); color:var(--text);
+    border:1px solid var(--glass-brd);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
   }
-  .btn.sec:hover { background: rgba(255,255,255,.12); filter: none; box-shadow: inset 0 1px 0 rgba(255,255,255,.1); }
+  .btn.sec:hover { background:var(--tint-ok); color:var(--accent); border-color:var(--brd2); filter:none; box-shadow:inset 0 1px 0 rgba(255,255,255,.1); }
+  .btn.sec::after { display:none; }
   .recomendado {
-    display: inline-block; background: linear-gradient(180deg, #00C75B, var(--accent)); color: #fff;
-    font-size: .7rem; font-weight: 800; padding: 3px 10px;
-    border-radius: 99px; margin-bottom: 12px; visibility: hidden;
-    box-shadow: 0 4px 14px rgba(0,176,80,.4), inset 0 1px 0 rgba(255,255,255,.25);
+    display:inline-block; background:var(--grad); color:var(--on-brand);
+    font-size:.7rem; font-weight:800; padding:4px 11px; letter-spacing:.05em;
+    border-radius:99px; margin-bottom:12px; visibility:hidden;
+    box-shadow:0 4px 14px rgba(43,217,131,.4), inset 0 1px 0 rgba(255,255,255,.25);
+    animation:latido2 3.2s ease-in-out infinite;
   }
-  .card.destacada .recomendado { visibility: visible; }
+  .card.destacada .recomendado { visibility:visible; }
+
+  /* ── CTA hacia planes / compra ── */
+  .cta-planes {
+    margin-top:40px; padding:26px 30px; border-radius:var(--r-l); width:100%; max-width:640px;
+    display:flex; flex-direction:column; align-items:center; text-align:center; gap:14px;
+    background:linear-gradient(135deg, rgba(43,217,131,.14), rgba(255,255,255,.02) 55%), var(--glass);
+    backdrop-filter:blur(24px) saturate(160%); -webkit-backdrop-filter:blur(24px) saturate(160%);
+    border:1px solid rgba(43,217,131,.35);
+    box-shadow:var(--somb-card), 0 0 40px rgba(43,217,131,.10), inset 0 1px 0 rgba(255,255,255,.10);
+    position:relative; overflow:hidden;
+  }
+  .cta-planes::before {
+    content:""; position:absolute; width:280px; height:280px; border-radius:50%;
+    background:radial-gradient(circle, rgba(43,217,131,.20), transparent 68%);
+    top:-140px; right:-60px; pointer-events:none;
+    animation:latido 4s ease-in-out infinite;
+  }
+  .cta-planes h3 { font-size:1.1rem; font-weight:800; letter-spacing:-.02em; }
+  .cta-planes p { color:var(--muted); font-size:.86rem; margin:4px auto 0; line-height:1.5; max-width:420px; }
+  .btn-planes {
+    display:inline-flex; align-items:center; gap:9px; flex:none;
+    background:var(--grad); color:var(--on-brand); text-decoration:none;
+    font-size:.94rem; font-weight:700; padding:13px 24px; border-radius:99px;
+    box-shadow:var(--sombra-cta), inset 0 1px 0 rgba(255,255,255,.28);
+    position:relative; overflow:hidden;
+    transition:transform .45s var(--spring), box-shadow .35s, filter .25s;
+  }
+  .btn-planes::after {
+    content:""; position:absolute; top:0; left:-70%; width:45%; height:100%;
+    transform:skewX(-22deg); pointer-events:none;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,.38), transparent);
+  }
+  .btn-planes:hover { transform:translateY(-2px) scale(1.02); filter:brightness(1.06); box-shadow:0 12px 30px rgba(43,217,131,.40), inset 0 1px 0 rgba(255,255,255,.3); }
+  .btn-planes:hover::after { left:130%; transition:left .55s ease; }
+  .btn-planes:active { transform:scale(.97); }
+
   .nota {
-    margin-top: 36px; color: var(--muted); font-size: .8rem;
-    max-width: 520px; text-align: center; line-height: 1.5;
+    margin-top:36px; color:var(--muted); font-size:.8rem;
+    max-width:560px; text-align:center; line-height:1.6;
+    background:var(--inner); border:1px solid var(--glass-brd); border-radius:var(--r-m);
+    padding:16px 20px;
   }
-  footer { margin-top: 28px; color: #6A6F84; font-size: .75rem; }
+  .nota b { color:var(--text); }
+  .nota code { background:var(--tint-ok); color:var(--accent); padding:2px 8px; border-radius:6px; }
+  footer { margin-top:28px; color:var(--text3); font-size:.75rem; }
+  footer a { color:var(--accent); }
+
+  /* ── Scroll personalizado + progreso de lectura ── */
+  html { scrollbar-width:thin; scrollbar-color:var(--accent-deep) transparent; }
+  ::-webkit-scrollbar { width:12px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb {
+    background:linear-gradient(180deg, var(--accent), var(--accent-deep));
+    border-radius:99px; border:3px solid var(--bg); background-clip:padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background:linear-gradient(180deg, #45E89A, var(--accent));
+    border:3px solid var(--bg); background-clip:padding-box;
+  }
+  .leido {
+    position:fixed; top:0; left:0; height:3px; width:0%; z-index:60;
+    background:var(--grad); border-radius:0 99px 99px 0;
+    box-shadow:0 0 12px rgba(43,217,131,.55);
+    pointer-events:none; transition:width .15s linear;
+  }
+  header.compacto { background:var(--header-solid); box-shadow:0 14px 40px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.08); }
+  header.oculto { transform:translateY(-160%); }
 </style>
 </head>
 <body>
-  <div class="logo">G</div>
-  <h1>Gestiq</h1>
-  <p class="sub">Automatización IMAGINE (ARL Bolívar) y GUARDIAN. Descarga, doble clic y listo: no necesitas instalar nada.</p>
-  <p class="version" id="version"></p>
+<script>try { if (localStorage.getItem("gestiq_tema") === "claro") document.body.className = "claro"; } catch (e) {}</script>
+
+<div class="leido" id="leido"></div>
+<div class="aurora"><span class="a1"></span><span class="a2"></span><span class="a3"></span></div>
+<div class="grid-fondo"></div>
+<div class="pts" id="pts"></div>
+
+<div class="wrap">
+
+  <header>
+    <div class="hlogo">G</div>
+    <div class="brand">Gestiq</div>
+    <div class="hgap"></div>
+    <a class="hbtn" href="cuenta.html" title="Ir a planes y cuenta">
+      <svg class="bi" viewBox="0 0 24 24"><path d="M6 7h12l-1.2 13H7.2L6 7z"/><path d="M9 10V7a3 3 0 0 1 6 0v3"/></svg>
+      <span>Planes y cuenta</span>
+    </a>
+    <button class="btn-tema" id="btnTema" onclick="tema(event)" title="Cambiar tema"></button>
+  </header>
+
+  <div class="hero-dl">
+    <div class="logo">G</div>
+    <h1>Descarga <span class="gradtx">Gestiq</span></h1>
+    <p class="sub">Automatización IMAGINE y GUARDIAN. Descarga, doble clic y listo: no necesitas instalar nada.</p>
+    <p class="version" id="version"></p>
+  </div>
 
   <div class="cards">
     <div class="card" id="card-win">
@@ -114,25 +359,44 @@
       <div class="os-icon">🪟</div>
       <h2>Windows</h2>
       <p>Windows 10/11 · 64 bits</p>
-      <a class="btn" id="btn-win" href="#">Descargar para Windows</a>
+      <a class="btn" id="btn-win" href="#">
+        <svg class="bi" width="17" height="17" viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
+        Descargar para Windows
+      </a>
     </div>
     <div class="card" id="card-mac">
       <span class="recomendado">RECOMENDADO PARA TI</span>
       <div class="os-icon">🍎</div>
       <h2>Mac</h2>
       <p>macOS 11+ · Apple Silicon</p>
-      <a class="btn" id="btn-mac" href="#">Descargar para Mac</a>
+      <a class="btn" id="btn-mac" href="#">
+        <svg class="bi" width="17" height="17" viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
+        Descargar para Mac
+      </a>
     </div>
+  </div>
+
+  <div class="cta-planes">
+    <div>
+      <h3>¿Aún no tienes licencia?</h3>
+      <p>Elige tu plan, paga con tarjeta, PSE o Nequi, y tu licencia se activa en menos de un minuto.</p>
+    </div>
+    <a class="btn-planes" href="cuenta.html">
+      <svg class="bi" width="17" height="17" viewBox="0 0 24 24"><path d="M6 7h12l-1.2 13H7.2L6 7z"/><path d="M9 10V7a3 3 0 0 1 6 0v3"/></svg>
+      Ver planes y comprar
+    </a>
   </div>
 
   <p class="nota">
     <b>Windows:</b> si SmartScreen muestra un aviso, haz clic en "Más información" → "Ejecutar de todas formas".<br>
     <b>Mac:</b> la primera vez macOS bloquea la app (a veces sin avisar). Abre Terminal, pega
-    <code style="background:rgba(255,255,255,.08);padding:2px 8px;border-radius:6px">xattr&nbsp;-cr&nbsp;~/Downloads/Gestiq-Mac/Gestiq.app</code>
+    <code>xattr&nbsp;-cr&nbsp;~/Downloads/Gestiq-Mac/Gestiq.app</code>
     y pulsa Enter; luego ábrela normal. También puedes ir a Ajustes → Privacidad y seguridad → "Abrir de todos modos". El zip incluye una nota con los detalles.
   </p>
 
-  <footer>Gestiq · Distribución oficial</footer>
+  <footer>Gestiq · Distribución oficial · <a href="cuenta.html">Planes y cuenta</a></footer>
+
+</div>
 
 <script>
   // ── CONFIGURAR: usuario/repositorio de GitHub ──
@@ -154,6 +418,80 @@
     .then(r => r.ok ? r.json() : null)
     .then(d => { if (d && d.tag_name) document.getElementById("version").textContent = "Última versión: " + d.tag_name; })
     .catch(() => {});
+
+  /* ══ Tema claro / oscuro (igual que en la app: sol/luna + gestiq_tema) ══ */
+  const ICO_SOL  = '<svg class="bi" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4m11.4-11.4 1.4-1.4"/></svg>';
+  const ICO_LUNA = '<svg class="bi" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+  function pintarTema(claro) {
+    document.body.classList.toggle("claro", claro);
+    document.getElementById("btnTema").innerHTML = claro ? ICO_SOL : ICO_LUNA;
+    const mt = document.getElementById("metaTema"); if (mt) mt.content = claro ? "#F2F3F6" : "#101018";
+    try { localStorage.setItem("gestiq_tema", claro ? "claro" : "oscuro"); } catch (e) {}
+  }
+  function tema(ev) {
+    const claro = !document.body.classList.contains("claro");
+    if (document.startViewTransition && ev && ev.clientX !== undefined) {
+      const x = ev.clientX, y = ev.clientY;
+      const r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+      const t = document.startViewTransition(() => pintarTema(claro));
+      t.ready.then(() => {
+        document.documentElement.animate(
+          { clipPath: ["circle(0px at " + x + "px " + y + "px)", "circle(" + r + "px at " + x + "px " + y + "px)"] },
+          { duration: 620, easing: "ease-in-out", pseudoElement: "::view-transition-new(root)" });
+      }).catch(() => {});
+    } else pintarTema(claro);
+  }
+  let claroIni = false;
+  try { claroIni = localStorage.getItem("gestiq_tema") === "claro"; } catch (e) {}
+  pintarTema(claroIni);
+
+  /* ══ Partículas flotantes ══ */
+  (function () {
+    const c = document.getElementById("pts"); if (!c) return;
+    for (let i = 0; i < 14; i++) {
+      const s = document.createElement("span");
+      const dur = 14 + Math.random() * 18, del = -(Math.random() * 30);
+      const x = Math.random() * 100, z = 2 + Math.random() * 3.5;
+      s.style.cssText = "left:" + x.toFixed(1) + "vw;width:" + z.toFixed(1) + "px;height:" + z.toFixed(1) +
+        "px;animation-duration:" + dur.toFixed(1) + "s;animation-delay:" + del.toFixed(1) +
+        "s;opacity:" + (.22 + Math.random() * .4).toFixed(2);
+      c.appendChild(s);
+    }
+  })();
+
+  /* ══ Spotlight que sigue el mouse + tilt 3D ══ */
+  document.querySelectorAll(".cards .card").forEach(c => {
+    c.addEventListener("mousemove", e => {
+      const r = c.getBoundingClientRect();
+      const px = (e.clientX - r.left) / r.width - .5, py = (e.clientY - r.top) / r.height - .5;
+      c.style.setProperty("--mx", (e.clientX - r.left) + "px");
+      c.style.setProperty("--my", (e.clientY - r.top) + "px");
+      c.style.transform = "perspective(950px) translateY(-5px) rotateX(" + (-py * 5).toFixed(2) + "deg) rotateY(" + (px * 6).toFixed(2) + "deg)";
+    });
+    c.addEventListener("mouseleave", () => { c.style.transform = ""; });
+  });
+/* ══ Header que se esconde al bajar + barra de progreso de lectura ══ */
+(function () {
+  const h = document.querySelector("header"), barra = document.getElementById("leido");
+  let yAnt = 0, tick = false;
+  function onScroll() {
+    const y = window.scrollY || 0;
+    if (barra) {
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      barra.style.width = (total > 0 ? Math.min(100, y / total * 100) : 0) + "%";
+    }
+    if (h) {
+      h.classList.toggle("compacto", y > 60);
+      if (y > 140 && y > yAnt + 4) h.classList.add("oculto");
+      else if (y < yAnt - 4 || y < 80) h.classList.remove("oculto");
+    }
+    yAnt = y; tick = false;
+  }
+  window.addEventListener("scroll", () => {
+    if (!tick) { tick = true; requestAnimationFrame(onScroll); }
+  }, { passive: true });
+  onScroll();
+})();
 </script>
 </body>
 </html>

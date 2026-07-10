@@ -3,10 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Planes y cuenta de Gestiq — automatiza IMAGINE y GUARDIAN con resultados directo en tu Excel.">
+<meta name="theme-color" content="#101018" id="metaTema">
 <title>Gestiq — Planes y cuenta</title>
 <script src="https://checkout.wompi.co/widget.js"></script>
 <style>
-  /* ═══ Gestiq · sistema "Cristal Disciplinado" · ver DESIGN.md ═══ */
+  /* ═══ Gestiq · sistema "Cristal Disciplinado" llevado al máximo · ver DESIGN.md ═══ */
   :root {
     --bg:#101018; --card-op:#1A1A24;
     --glass:rgba(255,255,255,.055); --inner:rgba(255,255,255,.045);
@@ -17,8 +19,28 @@
     --tint-ok:rgba(43,217,131,.12); --tint-warn:rgba(255,180,84,.12); --tint-err:rgba(255,99,105,.12);
     --grad:linear-gradient(160deg, var(--accent), var(--accent-deep));
     --sombra-cta:0 5px 16px rgba(43,217,131,.28);
+    --somb-card:0 16px 44px rgba(0,0,0,.32);
+    --somb-hover:0 24px 60px rgba(0,0,0,.40);
+    --header-bg:rgba(16,16,24,.55); --header-solid:rgba(16,16,24,.90);
+    --lineas:rgba(255,255,255,.045);
+    --aur-op:.55;
     --r-m:14px; --r-l:22px;
     --spring:cubic-bezier(.32,1.25,.4,1); --suave:cubic-bezier(.22,1,.36,1);
+  }
+  body.claro {
+    --bg:#F2F3F6; --card-op:#FFFFFF;
+    --glass:rgba(255,255,255,.66); --inner:rgba(22,24,31,.05);
+    --glass-brd:rgba(22,24,31,.10); --brd2:rgba(22,24,31,.18);
+    --text:#16181F; --muted:#565C6E; --text3:#868CA0;
+    --accent:#0FA65C; --accent-deep:#0B7A45; --on-brand:#FFFFFF;
+    --ok:#0FA65C; --warn:#B45309; --err:#D2323B;
+    --tint-ok:rgba(15,166,92,.13); --tint-warn:rgba(180,83,9,.12); --tint-err:rgba(210,50,59,.10);
+    --sombra-cta:0 5px 16px rgba(15,166,92,.30);
+    --somb-card:0 16px 44px rgba(25,30,40,.10);
+    --somb-hover:0 24px 60px rgba(25,30,40,.15);
+    --header-bg:rgba(255,255,255,.65); --header-solid:rgba(245,246,248,.94);
+    --lineas:rgba(22,24,31,.055);
+    --aur-op:.40;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
   html { scroll-behavior:smooth; }
@@ -27,36 +49,66 @@
     background:var(--bg); color:var(--text); min-height:100vh;
     -webkit-font-smoothing:antialiased; overflow-x:hidden;
   }
-  body::before {
-    content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
-    background:
-      radial-gradient(820px 520px at 84% -14%, rgba(43,217,131,.11), transparent 62%),
-      radial-gradient(700px 460px at -12% 30%, rgba(59,130,246,.05), transparent 60%),
-      radial-gradient(900px 560px at 55% 118%, rgba(43,217,131,.06), transparent 62%);
-  }
+  ::view-transition-old(root), ::view-transition-new(root) { animation:none; mix-blend-mode:normal; }
   .bi { width:16px; height:16px; flex:none; stroke:currentColor; fill:none;
         stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
   :focus { outline:none; }
   :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:6px; }
-  .wrap { max-width:1120px; margin:0 auto; padding:0 24px 80px; }
+  .wrap { max-width:1120px; margin:0 auto; padding:0 24px 80px; position:relative; z-index:1; }
   @media (max-width:480px) { .wrap { padding:0 16px 64px; } }
 
-  /* ── Animación de entrada ── */
-  @keyframes sube { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:none; } }
-  .hero, .row .card, .cuenta-zona, .faq { animation:sube .7s var(--suave) backwards; }
-  .row .card:nth-child(1) { animation-delay:.08s; }
-  .row .card:nth-child(2) { animation-delay:.16s; }
-  .row .card:nth-child(3) { animation-delay:.24s; }
-  @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+  /* ── Fondo espectáculo: aurora + rejilla + partículas ── */
+  .aurora { position:fixed; inset:0; z-index:-3; overflow:hidden; pointer-events:none; }
+  .aurora span { position:absolute; border-radius:50%; filter:blur(90px); opacity:var(--aur-op); will-change:transform; }
+  .aurora .a1 { width:58vmax; height:58vmax; top:-24vmax; right:-16vmax;
+    background:radial-gradient(circle, rgba(43,217,131,.34), transparent 65%);
+    animation:flota1 26s ease-in-out infinite alternate; }
+  .aurora .a2 { width:46vmax; height:46vmax; top:22vh; left:-20vmax;
+    background:radial-gradient(circle, rgba(59,130,246,.20), transparent 65%);
+    animation:flota2 32s ease-in-out infinite alternate; }
+  .aurora .a3 { width:52vmax; height:52vmax; bottom:-26vmax; left:32vw;
+    background:radial-gradient(circle, rgba(15,166,92,.28), transparent 65%);
+    animation:flota3 38s ease-in-out infinite alternate; }
+  @keyframes flota1 { to { transform:translate(-16vw, 12vh) scale(1.22) rotate(28deg); } }
+  @keyframes flota2 { to { transform:translate(14vw, -10vh) scale(1.15) rotate(-22deg); } }
+  @keyframes flota3 { to { transform:translate(-12vw, -14vh) scale(1.25) rotate(18deg); } }
+  .grid-fondo {
+    position:fixed; inset:0; z-index:-2; pointer-events:none;
+    background-image:linear-gradient(var(--lineas) 1px, transparent 1px),
+                     linear-gradient(90deg, var(--lineas) 1px, transparent 1px);
+    background-size:44px 44px;
+    -webkit-mask:radial-gradient(ellipse 95% 62% at 50% 0%, #000 28%, transparent 76%);
+    mask:radial-gradient(ellipse 95% 62% at 50% 0%, #000 28%, transparent 76%);
+  }
+  .pts { position:fixed; inset:0; z-index:-1; pointer-events:none; overflow:hidden;
+    -webkit-mask:linear-gradient(#000 72%, transparent); mask:linear-gradient(#000 72%, transparent); }
+  .pts span { position:absolute; bottom:-14px; border-radius:50%;
+    background:var(--accent); box-shadow:0 0 10px var(--accent);
+    animation:asciende linear infinite; will-change:transform; }
+  @keyframes asciende { from { transform:translateY(0); } to { transform:translateY(-110vh); } }
 
-  /* ── Header (vidrio flotante) ── */
+  /* ── Animación de entrada ── */
+  @keyframes sube { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:none; } }
+  header, .hero, .cinta, .row .card, .cuenta-zona { animation:sube .7s var(--suave) backwards; }
+  .hero { animation-delay:.05s; }
+  .cinta { animation-delay:.12s; }
+  .row .card:nth-child(1) { animation-delay:.14s; }
+  .row .card:nth-child(2) { animation-delay:.22s; }
+  .row .card:nth-child(3) { animation-delay:.30s; }
+  .cuenta-zona { animation-delay:.30s; }
+  .rvl { opacity:0; transform:translateY(20px); transition:opacity .8s var(--suave), transform .8s var(--suave); }
+  .rvl.vis { opacity:1; transform:none; }
+
+  /* ── Header (vidrio flotante, pegajoso) ── */
   header {
-    position:relative; display:flex; align-items:center; gap:10px;
+    position:sticky; top:12px; z-index:50;
+    display:flex; align-items:center; gap:10px;
     margin-top:16px; padding:9px 10px 9px 14px; border-radius:99px;
-    background:rgba(16,16,24,.55);
+    background:var(--header-bg);
     backdrop-filter:blur(24px) saturate(160%); -webkit-backdrop-filter:blur(24px) saturate(160%);
     border:1px solid var(--glass-brd);
-    box-shadow:0 10px 32px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.08);
+    box-shadow:0 10px 32px rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.08);
+    transition:transform .5s var(--suave), background .35s, box-shadow .35s;
   }
   .logo {
     width:34px; height:34px; border-radius:10px; background:var(--grad);
@@ -65,28 +117,64 @@
     font-size:17px; font-weight:700; color:var(--on-brand);
   }
   .brand { font-size:1.05rem; font-weight:700; letter-spacing:-.01em; }
-  header a.dl {
-    margin-left:auto; color:var(--muted); font-size:.82rem; font-weight:600; text-decoration:none;
-    border:1px solid var(--glass-brd); padding:9px 16px; border-radius:99px;
-    background:var(--inner);
-    transition:color .2s, border-color .2s, background .2s, transform .35s var(--spring);
+  .hgap { flex:1; }
+  .hbtn {
+    display:inline-flex; align-items:center; gap:8px;
+    background:var(--grad); color:var(--on-brand); text-decoration:none;
+    font-size:.84rem; font-weight:700; padding:10px 18px; border-radius:99px;
+    box-shadow:var(--sombra-cta), inset 0 1px 0 rgba(255,255,255,.28);
+    position:relative; overflow:hidden;
+    transition:transform .45s var(--spring), box-shadow .3s, filter .25s;
   }
-  header a.dl:hover { color:var(--accent); border-color:var(--brd2); background:var(--tint-ok); transform:translateY(-1px); }
-  header a.dl:active { transform:scale(.96); }
+  .hbtn::after {
+    content:""; position:absolute; top:0; left:-70%; width:45%; height:100%;
+    transform:skewX(-22deg); pointer-events:none;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,.38), transparent);
+  }
+  .hbtn:hover { transform:translateY(-1px); filter:brightness(1.06); }
+  .hbtn:hover::after { left:130%; transition:left .55s ease; }
+  .hbtn:active { transform:scale(.96); }
+  @media (max-width:480px) { .hbtn span { display:none; } .hbtn { padding:10px 13px; } }
+  .btn-tema {
+    width:36px; height:36px; border-radius:99px; border:1px solid var(--glass-brd);
+    background:var(--inner); cursor:pointer; color:var(--muted); flex:none;
+    display:flex; align-items:center; justify-content:center;
+    transition:transform .5s var(--spring), background .25s, color .25s, border-color .25s;
+  }
+  .btn-tema:hover { transform:rotate(40deg) scale(1.08); background:var(--tint-ok); color:var(--accent); border-color:var(--brd2); }
+  .btn-tema .bi { width:15px; height:15px; }
 
   /* ── Hero ── */
-  .hero { text-align:center; padding:54px 0 30px; }
-  .hero h1 { font-size:clamp(1.7rem, 4.2vw, 2.5rem); font-weight:700; letter-spacing:-.03em; }
-  .hero p { color:var(--muted); margin-top:12px; font-size:1rem; line-height:1.6; max-width:580px; margin-left:auto; margin-right:auto; }
+  .hero { text-align:center; padding:58px 0 26px; }
+  .pill {
+    display:inline-flex; align-items:center; gap:8px; padding:8px 16px; border-radius:99px;
+    background:var(--tint-ok); color:var(--accent); border:1px solid rgba(43,217,131,.30);
+    font-size:.76rem; font-weight:700; letter-spacing:.05em;
+    animation:latido 3.2s ease-in-out infinite;
+  }
+  @keyframes latido {
+    0%,100% { box-shadow:0 0 12px rgba(43,217,131,.10); }
+    50%     { box-shadow:0 0 30px rgba(43,217,131,.30); }
+  }
+  .hero h1 { font-size:clamp(1.9rem, 4.6vw, 3rem); font-weight:800; letter-spacing:-.035em; margin-top:18px; line-height:1.12; }
+  .hero h1 .gradtx {
+    background:linear-gradient(90deg, var(--text) 0%, var(--accent) 30%, var(--accent-deep) 55%, var(--text) 80%);
+    background-size:220% 100%;
+    -webkit-background-clip:text; background-clip:text;
+    -webkit-text-fill-color:transparent; color:transparent;
+    animation:brillo 6s linear infinite;
+  }
+  @keyframes brillo { to { background-position:-220% 0; } }
+  .hero p { color:var(--muted); margin-top:14px; font-size:1.02rem; line-height:1.6; max-width:600px; margin-left:auto; margin-right:auto; }
 
   /* ── Toggle de periodo (glider fluido) ── */
   .toggle {
     position:relative; display:inline-flex; gap:4px; padding:5px;
-    margin-top:26px; border-radius:99px;
+    margin-top:28px; border-radius:99px;
     background:var(--glass);
     backdrop-filter:blur(18px) saturate(150%); -webkit-backdrop-filter:blur(18px) saturate(150%);
     border:1px solid var(--glass-brd);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 8px 26px rgba(0,0,0,.25);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 8px 26px rgba(0,0,0,.18);
     max-width:100%;
   }
   .glider {
@@ -97,6 +185,10 @@
     box-shadow:0 4px 14px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.18);
     transition:transform .55s var(--spring), width .55s var(--spring);
     will-change:transform, width;
+  }
+  body.claro .glider:not(.verde) {
+    background:linear-gradient(180deg, rgba(22,24,31,.10), rgba(22,24,31,.05));
+    border-color:rgba(22,24,31,.12); box-shadow:0 4px 14px rgba(25,30,40,.12);
   }
   .glider.verde {
     background:var(--grad); border-color:transparent;
@@ -122,33 +214,271 @@
     .ahorro::before { content:"−"; }
   }
 
-  /* ── Fila de planes (vidrio) ── */
+  /* ── Cinta infinita ── */
+  .cinta {
+    margin:36px auto 0; max-width:920px; overflow:hidden;
+    -webkit-mask:linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+    mask:linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+  }
+  .cinta .pista { display:flex; width:max-content; animation:rueda 28s linear infinite; }
+  .cinta .grupo { display:flex; gap:38px; padding-right:38px; }
+  .cinta span {
+    display:flex; align-items:center; gap:8px; white-space:nowrap;
+    color:var(--text3); font-size:.78rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase;
+  }
+  .cinta i { color:var(--accent); font-style:normal; }
+  @keyframes rueda { to { transform:translateX(-50%); } }
+
+  /* ── Demo en vivo: réplica EXACTA de la app (captura de Toxic 09-jul-2026).
+       El interior va SIEMPRE en oscuro, como la app real; colores calcados
+       de gestiq_ui.html (tema oscuro), independientes del tema de la web. ── */
+  .demo {
+    max-width:880px; margin:46px auto 0;
+    animation:sube .7s var(--suave) backwards, vflota 6.5s ease-in-out 1.4s infinite alternate;
+    animation-delay:.14s, 1.4s;
+  }
+  @keyframes vflota { to { transform:translateY(-8px); } }
+  .demo-cap {
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    margin-bottom:14px; color:var(--muted); font-size:.92rem; font-weight:600;
+  }
+  .demo-cap .vivo {
+    display:inline-flex; align-items:center; gap:6px;
+    background:var(--tint-ok); color:var(--accent); border:1px solid rgba(43,217,131,.3);
+    font-size:.68rem; font-weight:800; letter-spacing:.08em; padding:4px 10px; border-radius:99px;
+  }
+  .demo-cap .vivo::before {
+    content:""; width:7px; height:7px; border-radius:50%; background:var(--accent);
+    animation:vpulso 1.6s ease-in-out infinite;
+  }
+  @keyframes vpulso { 0%,100% { opacity:.35; transform:scale(.8); } 50% { opacity:1; transform:scale(1.1); } }
+  .vent {
+    /* Tema del demo = tema de la app REAL (gestiq_ui.html), y sigue al de la web */
+    --vbg:#101018; --vcard:rgba(255,255,255,.055); --vinner:rgba(255,255,255,.045);
+    --vbrd:rgba(255,255,255,.10); --vtext:#F2F3F8; --vtext2:#A6ABC2; --vtext3:#6E7389;
+    --vbar-bg:#1B1B21; --vbar-brd:rgba(255,255,255,.08);
+    --vok:#2BD983; --von:#052616; --vgrad:linear-gradient(160deg, #2BD983, #0FA65C);
+    --vtint:rgba(43,217,131,.12); --vtint-brd:rgba(43,217,131,.25);
+    --vcta-somb:0 4px 12px rgba(43,217,131,.30);
+    --verr:#FF6369; --verr-brd:rgba(255,99,105,.35);
+    --vrad:rgba(43,217,131,.10);
+    --vsomb:0 34px 90px rgba(0,0,0,.5), 0 0 50px rgba(43,217,131,.10);
+    border-radius:16px; overflow:hidden; text-align:left; color:var(--vtext);
+    background:var(--vbg); border:1px solid var(--vbrd);
+    box-shadow:var(--vsomb);
+    transition:transform .5s var(--spring); will-change:transform;
+  }
+  body.claro .vent {
+    --vbg:#F2F3F6; --vcard:rgba(255,255,255,.85); --vinner:rgba(22,24,31,.05);
+    --vbrd:rgba(22,24,31,.10); --vtext:#16181F; --vtext2:#565C6E; --vtext3:#868CA0;
+    --vbar-bg:#E9E9EC; --vbar-brd:rgba(22,24,31,.10);
+    --vok:#0FA65C; --von:#FFFFFF; --vgrad:linear-gradient(160deg, #0FA65C, #0B7A45);
+    --vtint:rgba(15,166,92,.13); --vtint-brd:rgba(15,166,92,.28);
+    --vcta-somb:0 4px 12px rgba(15,166,92,.30);
+    --verr:#D2323B; --verr-brd:rgba(210,50,59,.35);
+    --vrad:rgba(15,166,92,.08);
+    --vsomb:0 34px 90px rgba(25,30,40,.18), 0 0 50px rgba(15,166,92,.08);
+  }
+  .vbar {
+    height:34px; display:flex; align-items:center; gap:7px; padding:0 13px;
+    background:var(--vbar-bg); border-bottom:1px solid var(--vbar-brd);
+  }
+  .sem { width:12px; height:12px; border-radius:50%; flex:none; position:relative;
+         transition:filter .25s, box-shadow .25s, transform .3s var(--spring); }
+  .sem.r  { background:#FF5F57; } .sem.am { background:#FEBC2E; } .sem.vr { background:#28C840; }
+  .sem::after {
+    content:""; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:9px; font-weight:800; line-height:1; color:rgba(0,0,0,.55);
+    opacity:0; transition:opacity .25s;
+  }
+  .sem.r::after { content:"×"; } .sem.am::after { content:"−"; } .sem.vr::after { content:"+"; }
+  .vbar:hover .sem { filter:brightness(1.15) saturate(1.25); }
+  .vbar:hover .sem.r  { box-shadow:0 0 10px rgba(255,95,87,.75); }
+  .vbar:hover .sem.am { box-shadow:0 0 10px rgba(254,188,46,.75); }
+  .vbar:hover .sem.vr { box-shadow:0 0 10px rgba(40,200,64,.75); }
+  .vbar:hover .sem::after { opacity:1; }
+  .sem:hover { transform:scale(1.2); }
+  .vtit { margin-left:10px; font-size:.78rem; font-weight:700; color:var(--vtext); }
+  .vbody {
+    padding:14px 16px 16px;
+    background:radial-gradient(620px 400px at 84% -12%, var(--vrad), transparent 62%), var(--vbg);
+  }
+  .vhead {
+    display:flex; align-items:center; gap:9px; padding:8px 10px 8px 12px; border-radius:99px;
+    background:var(--vcard); border:1px solid var(--vbrd);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  .vlogo {
+    width:26px; height:26px; border-radius:8px; background:var(--vgrad); color:var(--von);
+    font-weight:800; font-size:.74rem; display:flex; align-items:center; justify-content:center;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.35), var(--vcta-somb);
+  }
+  .vhead b { font-size:.84rem; color:var(--vtext); }
+  .vver { font-size:.62rem; color:var(--vtext3); border:1px solid var(--vbrd); padding:3px 9px; border-radius:99px; font-variant-numeric:tabular-nums; }
+  .vtema {
+    margin-left:auto; width:26px; height:26px; border-radius:99px; flex:none;
+    border:1px solid var(--vbrd); background:var(--vinner); color:var(--vtext2);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .vtema .bi { width:12px; height:12px; }
+  .vtema .isol { display:none; }
+  body.claro .vtema .iluna { display:none; }
+  body.claro .vtema .isol { display:block; }
+  .vgrid { display:flex; gap:10px; margin-top:10px; }
+  .vside { width:188px; flex:none; display:flex; flex-direction:column; gap:10px; }
+  .vnavc, .vcta { background:var(--vcard); border:1px solid var(--vbrd); border-radius:16px; padding:12px; }
+  .vnavc { flex:1; }
+  .vnavh { font-size:.56rem; font-weight:700; letter-spacing:.12em; color:var(--vtext3); margin:0 4px 8px; }
+  .vmod { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:99px; font-size:.7rem; font-weight:700; color:var(--vtext2); margin-bottom:4px; }
+  .vmod img { width:18px; height:18px; object-fit:contain; flex:none; }
+  .vmod.act { background:var(--vgrad); color:var(--von); box-shadow:var(--vcta-somb), inset 0 1px 0 rgba(255,255,255,.25); }
+  .vcta { display:flex; flex-direction:column; gap:6px; }
+  .vava { display:flex; align-items:center; gap:8px; }
+  .vava .foto {
+    width:34px; height:34px; border-radius:50%; flex:none; background:var(--vgrad); color:var(--von);
+    font-weight:800; font-size:.8rem; display:flex; align-items:center; justify-content:center;
+  }
+  .vava b { font-size:.72rem; color:var(--vtext); display:block; }
+  .vses { font-size:.62rem; color:var(--vok); display:flex; align-items:center; gap:5px; }
+  .vses::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--vok); }
+  .vmail { font-size:.62rem; color:var(--vtext3); word-break:break-all; }
+  .vbots { display:flex; gap:6px; margin-top:4px; }
+  .vgear {
+    width:26px; height:26px; flex:none; border-radius:99px; border:1px solid var(--vbrd);
+    background:var(--vinner); color:var(--vtext2); display:flex; align-items:center; justify-content:center;
+  }
+  .vgear .bi { width:12px; height:12px; }
+  .vsalir {
+    flex:1; text-align:center; font-size:.64rem; font-weight:650; color:var(--vtext2);
+    border:1px solid var(--vbrd); background:var(--vinner);
+    border-radius:99px; padding:6px 0;
+  }
+  .vmain { flex:1; min-width:0; display:flex; flex-direction:column; gap:10px; }
+  .vcard { background:var(--vcard); border:1px solid var(--vbrd); border-radius:16px; padding:12px 14px; }
+  .vch { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .vnum {
+    width:20px; height:20px; flex:none; border-radius:99px;
+    background:var(--vtint); border:1px solid var(--vtint-brd); color:var(--vok);
+    font-size:.62rem; font-weight:800; display:flex; align-items:center; justify-content:center;
+  }
+  .vch b { font-size:.8rem; color:var(--vtext); }
+  .vch .vest { margin-left:auto; font-size:.66rem; color:var(--vtext3); font-weight:600; }
+  .vch .vest.ok { color:var(--vok); }
+  .vzar {
+    display:flex; align-items:center; gap:10px;
+    background:var(--vinner); border:1px solid var(--vbrd);
+    border-radius:12px; padding:9px 12px;
+  }
+  .vdoc {
+    width:34px; height:34px; flex:none; border-radius:9px;
+    background:var(--vtint); border:1px solid var(--vtint-brd); color:var(--vok);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .vzar .vcol { min-width:0; display:flex; flex-direction:column; }
+  .vzar .nom { font-size:.72rem; font-weight:650; color:var(--vtext); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .vzar .det { font-size:.62rem; color:var(--vtext3); margin-top:1px; }
+  .vsel {
+    margin-left:auto; flex:none; background:var(--vgrad); color:var(--von);
+    font-size:.66rem; font-weight:700; padding:7px 14px; border-radius:99px;
+    box-shadow:var(--vcta-somb), inset 0 1px 0 rgba(255,255,255,.25);
+  }
+  .vayu { font-size:.62rem; color:var(--vtext3); margin-top:8px; line-height:1.5; }
+  .vlab { font-size:.62rem; color:var(--vtext2); margin:0 0 5px; }
+  .vin {
+    background:var(--vinner); border:1px solid var(--vbrd);
+    border-radius:10px; padding:8px 11px; font-size:.68rem; color:var(--vtext3);
+  }
+  .vin.lleno { color:var(--vtext); }
+  .vcols { display:flex; gap:10px; margin-top:9px; }
+  .vcols > div { flex:1; }
+  .vrun { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .vplay {
+    display:inline-flex; align-items:center; gap:6px; background:var(--vgrad); color:var(--von);
+    font-size:.68rem; font-weight:700; padding:8px 16px; border-radius:99px;
+    box-shadow:var(--vcta-somb), inset 0 1px 0 rgba(255,255,255,.25);
+    transition:transform .3s var(--spring), filter .3s;
+  }
+  .vplay.on { transform:scale(.96); filter:brightness(1.12); }
+  .vstop {
+    display:inline-flex; align-items:center; gap:6px; color:var(--verr);
+    border:1px solid var(--verr-brd); background:var(--vinner);
+    font-size:.68rem; font-weight:700; padding:8px 14px; border-radius:99px;
+  }
+  .vcopy {
+    margin-left:auto; display:inline-flex; align-items:center; gap:6px; color:var(--vtext2);
+    border:1px solid var(--vbrd); background:var(--vinner);
+    font-size:.68rem; font-weight:650; padding:8px 14px; border-radius:99px;
+  }
+  .vstat { margin-top:9px; font-size:.68rem; color:var(--vtext2); }
+  .vstat b { color:var(--vtext); font-variant-numeric:tabular-nums; }
+  .vstat.fin { color:var(--vok); font-weight:700; }
+  .vpbar { margin-top:6px; height:5px; border-radius:99px; background:var(--vinner); overflow:hidden; }
+  .vpfill {
+    height:100%; width:0%; border-radius:99px; background:var(--vgrad);
+    box-shadow:0 0 10px rgba(43,217,131,.5); transition:width .8s var(--suave);
+  }
+  .vlogh { display:flex; align-items:center; margin:11px 0 7px; }
+  .vlogh span { font-size:.58rem; font-weight:700; letter-spacing:.1em; color:var(--vtext3); }
+  .vlogh .exp { margin-left:auto; letter-spacing:0; font-weight:650; }
+  .vlog {
+    /* El registro es OSCURO también en claro — igual que la app real */
+    height:150px; overflow:hidden; border-radius:12px; border:1px solid var(--vbrd);
+    background:#0C0C14; padding:10px 12px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:.64rem; line-height:1.7;
+    display:flex; flex-direction:column; justify-content:flex-end;
+  }
+  body.claro .vlog { background:#14171E; }
+  .vlog div { animation:sube .4s var(--suave); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .vlog .lgris { color:#9BA3BD; } .vlog .lok { color:#2BD983; } .vlog .ldev { color:#FF6369; }
+  .vlog .lnota { color:#4169E1; } .vlog .lfin { color:#2BD983; font-weight:700; }
+  @media (max-width:640px) { .vside { display:none; } }
+
+  /* ── Fila de planes (vidrio + spotlight + aro animado) ── */
   .row {
     display:grid; grid-template-columns:repeat(3, 1fr); gap:20px;
-    align-items:start; margin-top:34px;
+    align-items:start; margin-top:40px; perspective:1100px;
   }
   @media (max-width:920px) { .row { grid-template-columns:1fr; max-width:460px; margin-left:auto; margin-right:auto; } }
   .card {
+    position:relative;
     background:linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.012) 45%), var(--glass);
     backdrop-filter:blur(24px) saturate(160%); -webkit-backdrop-filter:blur(24px) saturate(160%);
     border:1px solid var(--glass-brd);
     border-radius:var(--r-l); padding:26px 24px;
-    box-shadow:0 16px 44px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.08);
+    box-shadow:var(--somb-card), inset 0 1px 0 rgba(255,255,255,.08);
     transition:transform .5s var(--spring), border-color .3s, box-shadow .5s var(--suave);
   }
+  .card::after {
+    content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+    opacity:0; transition:opacity .4s ease;
+    background:radial-gradient(440px circle at var(--mx,50%) var(--my,50%), rgba(43,217,131,.12), transparent 62%);
+  }
+  .card:hover::after { opacity:1; }
   .row .card:hover {
     transform:translateY(-5px); border-color:var(--brd2);
-    box-shadow:0 24px 60px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.1);
+    box-shadow:var(--somb-hover), inset 0 1px 0 rgba(255,255,255,.1);
   }
   .card.destacada {
-    background:linear-gradient(180deg, rgba(43,217,131,.10), rgba(255,255,255,.02) 45%), rgba(24,28,32,.6);
+    background:linear-gradient(180deg, rgba(43,217,131,.10), rgba(255,255,255,.02) 45%), var(--glass);
     border-color:rgba(43,217,131,.4);
-    box-shadow:0 18px 52px rgba(0,0,0,.4), 0 0 36px rgba(43,217,131,.10), inset 0 1px 0 rgba(255,255,255,.12);
+    box-shadow:var(--somb-card), 0 0 36px rgba(43,217,131,.10), inset 0 1px 0 rgba(255,255,255,.12);
   }
   .row .card.destacada:hover {
     border-color:rgba(43,217,131,.65);
-    box-shadow:0 26px 64px rgba(0,0,0,.45), 0 0 46px rgba(43,217,131,.16), inset 0 1px 0 rgba(255,255,255,.14);
+    box-shadow:var(--somb-hover), 0 0 46px rgba(43,217,131,.16), inset 0 1px 0 rgba(255,255,255,.14);
   }
+  @property --ang { syntax:'<angle>'; initial-value:0deg; inherits:false; }
+  .card.destacada::before {
+    content:""; position:absolute; inset:-1px; border-radius:inherit; padding:1.6px;
+    background:conic-gradient(from var(--ang),
+      transparent 0deg, var(--accent) 40deg, transparent 110deg,
+      transparent 180deg, var(--accent-deep) 230deg, transparent 300deg);
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor; mask-composite:exclude;
+    pointer-events:none; animation:gira 5s linear infinite;
+  }
+  @keyframes gira { to { --ang:360deg; } }
 
   .plan-head { display:flex; align-items:center; justify-content:space-between; min-height:28px; }
   .plan-name { font-size:1.05rem; font-weight:700; letter-spacing:-.01em; }
@@ -156,6 +486,7 @@
     background:var(--grad); color:var(--on-brand);
     font-size:.66rem; font-weight:700; padding:5px 11px; border-radius:99px; letter-spacing:.06em;
     box-shadow:0 4px 14px rgba(43,217,131,.35), inset 0 1px 0 rgba(255,255,255,.25);
+    animation:latido 3.2s ease-in-out infinite;
   }
   .plan-desc { color:var(--muted); font-size:.84rem; line-height:1.5; margin-top:6px; min-height:2.6em; }
   .precio-big { margin-top:18px; display:flex; align-items:baseline; gap:7px; flex-wrap:wrap; }
@@ -167,10 +498,16 @@
   .cta {
     width:100%; margin-top:18px; padding:14px; border:none; border-radius:99px;
     background:var(--grad); color:var(--on-brand); font-size:.95rem; font-weight:700; cursor:pointer;
-    font-family:inherit;
+    font-family:inherit; position:relative; overflow:hidden;
     box-shadow:var(--sombra-cta), inset 0 1px 0 rgba(255,255,255,.28);
     transition:transform .45s var(--spring), box-shadow .35s, filter .25s, background .25s;
   }
+  .cta:not(.sec):not(.google)::after {
+    content:""; position:absolute; top:0; left:-70%; width:45%; height:100%;
+    transform:skewX(-22deg); pointer-events:none;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,.38), transparent);
+  }
+  .cta:not(.sec):not(.google):hover::after { left:130%; transition:left .55s ease; }
   .cta:hover { transform:translateY(-2px) scale(1.012); box-shadow:0 10px 28px rgba(43,217,131,.38), inset 0 1px 0 rgba(255,255,255,.3); filter:brightness(1.05); }
   .cta:active { transform:translateY(0) scale(.965); }
   .cta:disabled { opacity:.45; cursor:default; transform:none; box-shadow:none; }
@@ -220,10 +557,14 @@
     border-color:var(--accent); background-color:rgba(255,255,255,.07);
     box-shadow:0 0 0 3px rgba(43,217,131,.20);
   }
+  body.claro input:focus, body.claro select:focus { background-color:#FFFFFF; }
   select {
     -webkit-appearance:none; appearance:none; cursor:pointer; padding-right:38px;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23A6ABC2' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
     background-repeat:no-repeat; background-position:right 14px center;
+  }
+  body.claro select {
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23565C6E' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
   }
   select option { background:var(--card-op); color:var(--text); }
   .msg { margin-top:13px; font-size:.85rem; text-align:center; min-height:1.2em; color:var(--muted); }
@@ -250,6 +591,7 @@
     border:1px solid var(--glass-brd);
   }
   .cta.google:hover { background:rgba(255,255,255,.09); filter:none; }
+  body.claro .cta.google:hover { background:rgba(22,24,31,.08); }
   .divisor {
     display:flex; align-items:center; gap:12px; margin-top:16px;
     color:var(--text3); font-size:.76rem;
@@ -265,34 +607,115 @@
   .faq summary {
     cursor:pointer; list-style:none; display:flex; justify-content:space-between; gap:14px;
     align-items:center; padding:21px 4px; font-weight:600; font-size:.98rem;
+    transition:color .25s;
   }
+  .faq summary:hover { color:var(--accent); }
   .faq summary::-webkit-details-marker { display:none; }
   .faq summary .chev { color:var(--text3); transition:transform .35s var(--spring), color .2s; display:flex; }
   .faq summary:hover .chev { color:var(--accent); }
   .faq details[open] summary .chev { transform:rotate(180deg); }
   .faq .resp { color:var(--muted); font-size:.9rem; line-height:1.6; padding:0 4px 22px; max-width:760px; }
+  .faq details[open] .resp { animation:sube .45s var(--suave); }
 
-  .footnote { text-align:center; color:var(--text3); font-size:.8rem; line-height:1.7; margin-top:70px; }
+  /* ── CTA final hacia la descarga ── */
+  .cta-final {
+    margin-top:80px; padding:34px 30px; border-radius:var(--r-l);
+    display:flex; align-items:center; justify-content:space-between; gap:22px; flex-wrap:wrap;
+    background:linear-gradient(135deg, rgba(43,217,131,.14), rgba(255,255,255,.02) 55%), var(--glass);
+    backdrop-filter:blur(24px) saturate(160%); -webkit-backdrop-filter:blur(24px) saturate(160%);
+    border:1px solid rgba(43,217,131,.35);
+    box-shadow:var(--somb-card), 0 0 44px rgba(43,217,131,.10), inset 0 1px 0 rgba(255,255,255,.10);
+    position:relative; overflow:hidden;
+  }
+  .cta-final::before {
+    content:""; position:absolute; width:340px; height:340px; border-radius:50%;
+    background:radial-gradient(circle, rgba(43,217,131,.20), transparent 68%);
+    top:-170px; right:-80px; pointer-events:none;
+    animation:latido 4s ease-in-out infinite;
+  }
+  .cta-final h3 { font-size:1.35rem; font-weight:800; letter-spacing:-.02em; }
+  .cta-final p { color:var(--muted); font-size:.92rem; margin-top:6px; max-width:480px; line-height:1.55; }
+  .btn-final {
+    display:inline-flex; align-items:center; gap:10px; flex:none;
+    background:var(--grad); color:var(--on-brand); text-decoration:none;
+    font-size:1rem; font-weight:700; padding:15px 28px; border-radius:99px;
+    box-shadow:var(--sombra-cta), inset 0 1px 0 rgba(255,255,255,.28);
+    position:relative; overflow:hidden;
+    transition:transform .45s var(--spring), box-shadow .35s, filter .25s;
+  }
+  .btn-final::after {
+    content:""; position:absolute; top:0; left:-70%; width:45%; height:100%;
+    transform:skewX(-22deg); pointer-events:none;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,.38), transparent);
+  }
+  .btn-final:hover { transform:translateY(-2px) scale(1.02); filter:brightness(1.06); box-shadow:0 12px 30px rgba(43,217,131,.40), inset 0 1px 0 rgba(255,255,255,.3); }
+  .btn-final:hover::after { left:130%; transition:left .55s ease; }
+  .btn-final:active { transform:scale(.97); }
+
+  .footnote { text-align:center; color:var(--text3); font-size:.8rem; line-height:1.7; margin-top:56px; }
   .footnote a { color:var(--accent); }
 
-  ::-webkit-scrollbar { width:10px; }
-  ::-webkit-scrollbar-thumb { background:var(--brd2); border-radius:99px; }
+  /* ── Scroll personalizado + progreso de lectura ── */
+  html { scrollbar-width:thin; scrollbar-color:var(--accent-deep) transparent; }
+  ::-webkit-scrollbar { width:12px; }
   ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb {
+    background:linear-gradient(180deg, var(--accent), var(--accent-deep));
+    border-radius:99px; border:3px solid var(--bg); background-clip:padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background:linear-gradient(180deg, #45E89A, var(--accent));
+    border:3px solid var(--bg); background-clip:padding-box;
+  }
+  .leido {
+    position:fixed; top:0; left:0; height:3px; width:0%; z-index:60;
+    background:var(--grad); border-radius:0 99px 99px 0;
+    box-shadow:0 0 12px rgba(43,217,131,.55);
+    pointer-events:none; transition:width .15s linear;
+  }
+  header.compacto { background:var(--header-solid); box-shadow:0 14px 40px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.08); }
+  header.oculto { transform:translateY(-160%); }
+  .subir {
+    position:fixed; right:22px; bottom:22px; z-index:55;
+    width:46px; height:46px; border-radius:99px; border:none; cursor:pointer;
+    background:var(--grad); color:var(--on-brand);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:var(--sombra-cta), 0 0 24px rgba(43,217,131,.25), inset 0 1px 0 rgba(255,255,255,.28);
+    opacity:0; transform:translateY(16px) scale(.8); pointer-events:none;
+    transition:opacity .4s var(--suave), transform .5s var(--spring), filter .25s;
+  }
+  .subir.vis { opacity:1; transform:none; pointer-events:auto; }
+  .subir:hover { filter:brightness(1.08); transform:translateY(-3px); }
+  .subir:active { transform:scale(.92); }
+  .subir .bi { width:18px; height:18px; }
 
 </style>
 </head>
 <body>
+<script>try { if (localStorage.getItem("gestiq_tema") === "claro") document.body.className = "claro"; } catch (e) {}</script>
+
+<div class="leido" id="leido"></div>
+<div class="aurora"><span class="a1"></span><span class="a2"></span><span class="a3"></span></div>
+<div class="grid-fondo"></div>
+<div class="pts" id="pts"></div>
+
 <div class="wrap">
 
   <header>
     <div class="logo">G</div>
     <div class="brand">Gestiq</div>
-    <a class="dl" href="index.html">Descargar la app</a>
+    <div class="hgap"></div>
+    <a class="hbtn" href="index.html" title="Ir a la página de descarga">
+      <svg class="bi" viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
+      <span>Descargar la app</span>
+    </a>
+    <button class="btn-tema" id="btnTema" onclick="tema(event)" title="Cambiar tema"></button>
   </header>
 
   <div class="hero">
-    <h1>El plan perfecto para tu operación.</h1>
-    <p>Automatiza tus consultas en ARL Bolívar y Guardián, y recibe los resultados directo en tu Excel. Activación inmediata al pagar.</p>
+    <span class="pill">⚡ Activación inmediata al pagar</span>
+    <h1>El plan perfecto <span class="gradtx">para tu operación.</span></h1>
+    <p>Automatiza tus consultas en IMAGINE y GUARDIAN, y recibe los resultados directo en tu Excel. Activación inmediata al pagar.</p>
     <div class="toggle" id="toggle">
       <span class="glider"></span>
       <button onclick="periodo(1,this)">Mensual</button>
@@ -301,20 +724,111 @@
     </div>
   </div>
 
+  <div class="cinta"><div class="pista">
+    <div class="grupo">
+      <span><i>✓</i> Resultados en tu Excel</span>
+      <span><i>✓</i> Módulo IMAGINE</span>
+      <span><i>✓</i> Módulo GUARDIAN</span>
+      <span><i>✓</i> Activación inmediata</span>
+      <span><i>✓</i> Windows y Mac</span>
+      <span><i>✓</i> Actualizaciones incluidas</span>
+    </div>
+    <div class="grupo">
+      <span><i>✓</i> Resultados en tu Excel</span>
+      <span><i>✓</i> Módulo IMAGINE</span>
+      <span><i>✓</i> Módulo GUARDIAN</span>
+      <span><i>✓</i> Activación inmediata</span>
+      <span><i>✓</i> Windows y Mac</span>
+      <span><i>✓</i> Actualizaciones incluidas</span>
+    </div>
+  </div></div>
+
+  <!-- ════ Demo en vivo: réplica exacta de la app ════ -->
+  <div class="demo">
+    <p class="demo-cap"><span class="vivo">EN VIVO</span> Así se ve Gestiq trabajando por ti</p>
+    <div class="vent" id="vent">
+      <div class="vbar">
+        <span class="sem r"></span><span class="sem am"></span><span class="sem vr"></span>
+        <span class="vtit">Gestiq</span>
+      </div>
+      <div class="vbody">
+        <div class="vhead">
+          <span class="vlogo">G</span><b>Gestiq</b><span class="vver">v1.0.22</span>
+          <span class="vtema"><svg class="bi iluna" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><svg class="bi isol" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4m11.4-11.4 1.4-1.4"/></svg></span>
+        </div>
+        <div class="vgrid">
+          <div class="vside">
+            <div class="vnavc">
+              <p class="vnavh">MÓDULOS</p>
+              <div class="vmod act"><img src="logo_imagine.png" alt="">IMAGINE</div>
+              <div class="vmod"><img src="logo_guardian.png" alt="">GUARDIAN</div>
+            </div>
+            <div class="vcta">
+              <div class="vava">
+                <span class="foto">T</span>
+                <span><b>TOXIC$$$</b><span class="vses">Sesión activa</span></span>
+              </div>
+              <span class="vmail">toxic@gestiq.app</span>
+              <div class="vbots">
+                <span class="vgear"><svg class="bi" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+                <span class="vsalir">Cerrar sesión</span>
+              </div>
+            </div>
+          </div>
+          <div class="vmain">
+            <div class="vcard">
+              <div class="vch"><span class="vnum">1</span><b>Archivo Excel</b><span class="vest" id="vest1">Pendiente</span></div>
+              <div class="vzar">
+                <span class="vdoc"><svg class="bi" width="15" height="15" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>
+                <span class="vcol">
+                  <span class="nom" id="varchN">Ningún archivo seleccionado</span>
+                  <span class="det" id="varchS">Elige el Excel que contiene los casos</span>
+                </span>
+                <span class="vsel">Seleccionar…</span>
+              </div>
+              <p class="vayu">Los resultados se escriben en este archivo; las celdas que ya tienen valor no se tocan.</p>
+            </div>
+            <div class="vcard">
+              <div class="vch"><span class="vnum">2</span><b>Configuración</b></div>
+              <p class="vlab">Hoja(s) del Excel — toca para seleccionar varias</p>
+              <div class="vin" id="vhojas">Selecciona primero el archivo</div>
+              <div class="vcols">
+                <div><p class="vlab">Columna de casos</p><div class="vin lleno">CASO</div></div>
+                <div><p class="vlab">Columna de resultado</p><div class="vin lleno">IMAGINE</div></div>
+              </div>
+            </div>
+            <div class="vcard">
+              <div class="vch"><span class="vnum">3</span><b>Ejecución</b></div>
+              <div class="vrun">
+                <span class="vplay" id="vplay"><svg class="bi" width="12" height="12" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></svg>Iniciar consulta</span>
+                <span class="vstop"><svg class="bi" width="11" height="11" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="1.5" fill="currentColor" stroke="none"/></svg>Detener</span>
+                <span class="vcopy"><svg class="bi" width="12" height="12" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>Guardar copia…</span>
+              </div>
+              <p class="vstat" id="vstat">Listo para comenzar</p>
+              <div class="vpbar"><div class="vpfill" id="vpfill"></div></div>
+              <div class="vlogh"><span>REGISTRO DE ACTIVIDAD</span><span class="exp">Exportar…</span></div>
+              <div class="vlog" id="vlog"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="row">
 
     <!-- ════ Plan IMAGINE ════ -->
     <div class="card">
-      <div class="plan-head"><span class="plan-name">Imagine</span></div>
-      <p class="plan-desc">Solo el módulo de ARL Bolívar (IMAGINE).</p>
+      <div class="plan-head"><span class="plan-name">IMAGINE</span></div>
+      <p class="plan-desc">Solo el módulo IMAGINE.</p>
       <div class="precio-big">
         <span class="num" id="p-imagine">$250.000</span>
         <span class="per">COP /mes</span>
       </div>
       <p class="precio-sub" id="s-imagine">Facturación mensual</p>
-      <button class="cta sec" id="cta-imagine" onclick="comenzar('imagine')">Elegir Imagine</button>
+      <button class="cta sec" id="cta-imagine" onclick="comenzar('imagine')">Elegir IMAGINE</button>
       <ul class="feats">
-        <li><span class="check">✓</span><div>Módulo IMAGINE — ARL Bolívar<small>Consulta masiva de casos desde tu Excel.</small></div></li>
+        <li><span class="check">✓</span><div>Módulo IMAGINE<small>Consulta masiva de casos desde tu Excel.</small></div></li>
         <li class="off"><span class="check no">✕</span><div>Módulo GUARDIAN</div></li>
         <li><span class="check">✓</span><div>Resultados directo en tu Excel</div></li>
         <li><span class="check">✓</span><div>Licencia para 1 equipo<small>Windows o Mac, con login permanente.</small></div></li>
@@ -337,7 +851,7 @@
       <p class="precio-sub" id="s-completo">Facturación mensual</p>
       <button class="cta" id="cta-completo" onclick="comenzar('completo')">Elegir Completo</button>
       <ul class="feats">
-        <li><span class="check">✓</span><div>Módulo IMAGINE — ARL Bolívar<small>Consulta masiva de casos desde tu Excel.</small></div></li>
+        <li><span class="check">✓</span><div>Módulo IMAGINE<small>Consulta masiva de casos desde tu Excel.</small></div></li>
         <li><span class="check">✓</span><div>Módulo GUARDIAN<small>Automatización completa del portal.</small></div></li>
         <li><span class="check">✓</span><div>Resultados directo en tu Excel</div></li>
         <li><span class="check">✓</span><div>Licencia para 1 equipo<small>Windows o Mac, con login permanente.</small></div></li>
@@ -348,16 +862,16 @@
 
     <!-- ════ Plan GUARDIAN ════ -->
     <div class="card">
-      <div class="plan-head"><span class="plan-name">Guardian</span></div>
-      <p class="plan-desc">Solo el módulo del portal Guardián.</p>
+      <div class="plan-head"><span class="plan-name">GUARDIAN</span></div>
+      <p class="plan-desc">Solo el módulo del portal GUARDIAN.</p>
       <div class="precio-big">
         <span class="num" id="p-guardian">$250.000</span>
         <span class="per">COP /mes</span>
       </div>
       <p class="precio-sub" id="s-guardian">Facturación mensual</p>
-      <button class="cta sec" id="cta-guardian" onclick="comenzar('guardian')">Elegir Guardian</button>
+      <button class="cta sec" id="cta-guardian" onclick="comenzar('guardian')">Elegir GUARDIAN</button>
       <ul class="feats">
-        <li class="off"><span class="check no">✕</span><div>Módulo IMAGINE — ARL Bolívar</div></li>
+        <li class="off"><span class="check no">✕</span><div>Módulo IMAGINE</div></li>
         <li><span class="check">✓</span><div>Módulo GUARDIAN<small>Automatización completa del portal.</small></div></li>
         <li><span class="check">✓</span><div>Resultados directo en tu Excel</div></li>
         <li><span class="check">✓</span><div>Licencia para 1 equipo<small>Windows o Mac, con login permanente.</small></div></li>
@@ -473,7 +987,7 @@
   </div>
 
   <!-- ════ FAQ ════ -->
-  <div class="faq">
+  <div class="faq rvl">
     <h2>Preguntas frecuentes</h2>
 
     <details>
@@ -483,7 +997,7 @@
 
     <details>
       <summary>¿Cuál es la diferencia entre los planes? <span class="chev"><svg class="bi" width="15" height="15" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></summary>
-      <p class="resp">Imagine incluye solo el módulo de ARL Bolívar; Guardian incluye solo el módulo del portal Guardián; el plan Completo incluye ambos módulos y ahorra $50.000 al mes frente a pagar los dos por separado. Puedes cambiar de plan en cualquier momento: tu próximo pago define tu plan.</p>
+      <p class="resp">IMAGINE incluye solo el módulo IMAGINE; GUARDIAN incluye solo el módulo del portal GUARDIAN; el plan Completo incluye ambos módulos y ahorra $50.000 al mes frente a pagar los dos por separado. Puedes cambiar de plan en cualquier momento: tu próximo pago define tu plan.</p>
     </details>
 
     <details>
@@ -508,8 +1022,20 @@
 
     <details>
       <summary>¿Necesito internet para usarla? <span class="chev"><svg class="bi" width="15" height="15" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></summary>
-      <p class="resp">Sí. Gestiq valida tu licencia y consulta los portales de las ARL en línea, así que requiere conexión a internet mientras la usas.</p>
+      <p class="resp">Sí. Gestiq valida tu licencia y consulta los portales IMAGINE y GUARDIAN en línea, así que requiere conexión a internet mientras la usas.</p>
     </details>
+  </div>
+
+  <!-- ════ CTA final → descarga ════ -->
+  <div class="cta-final rvl">
+    <div>
+      <h3>¿Ya tienes tu plan? Te falta la app.</h3>
+      <p>Descárgala para Windows o Mac, entra con tu cuenta y empieza a automatizar hoy mismo. Sin instalación: doble clic y listo.</p>
+    </div>
+    <a class="btn-final" href="index.html">
+      <svg class="bi" width="18" height="18" viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
+      Descargar la app
+    </a>
   </div>
 
   <p class="footnote">Precios en pesos colombianos (COP). ¿Ya pagaste? Tu licencia se activa en menos de un minuto; pulsa
@@ -517,6 +1043,10 @@
     <a href="index.html">Descargar la app</a></p>
 
 </div>
+
+<button class="subir" id="subir" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Volver arriba">
+  <svg class="bi" viewBox="0 0 24 24"><path d="M12 19V5m0 0-6 6m6-6 6 6"/></svg>
+</button>
 
 <script>
 /* ══ CONFIGURACIÓN (editar al cambiar precios o llaves) ══ */
@@ -529,7 +1059,7 @@ const PRECIOS = {
   guardian: { 1: 250000, 6: 1275000, 12: 2250000 },
   completo: { 1: 450000, 6: 2295000, 12: 4050000 },
 };
-const NOMBRES = { imagine: "Imagine", guardian: "Guardian", completo: "Completo" };
+const NOMBRES = { imagine: "IMAGINE", guardian: "GUARDIAN", completo: "Completo" };
 /* ═══════════════════════════════════════════════════════ */
 
 const $ = id => document.getElementById(id);
@@ -537,13 +1067,29 @@ const fmt = n => "$" + n.toLocaleString("es-CO");
 let ses = null, meses = 1;
 try { ses = JSON.parse(localStorage.getItem("gestiq_ses") || "null"); } catch (e) {}
 
+/* ══ Contador animado de precios ══ */
+const _tw = new Map();
+function animarPrecio(el, fin) {
+  const ini = parseInt((el.textContent || "0").replace(/\D/g, ""), 10) || 0;
+  if (ini === fin) { el.textContent = fmt(fin); return; }
+  if (_tw.has(el)) cancelAnimationFrame(_tw.get(el));
+  const t0 = performance.now(), dur = 520;
+  const paso = t => {
+    const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = fmt(Math.round(ini + (fin - ini) * e));
+    if (k < 1) _tw.set(el, requestAnimationFrame(paso));
+    else _tw.delete(el);
+  };
+  _tw.set(el, requestAnimationFrame(paso));
+}
+
 function periodo(m, btn) {
   meses = m;
   document.querySelectorAll("#toggle button").forEach(b => b.classList.toggle("act", b === btn));
   glide($("toggle"));
   for (const plan of Object.keys(PRECIOS)) {
     const total = PRECIOS[plan][m];
-    $("p-" + plan).textContent = fmt(Math.round(total / m));
+    animarPrecio($("p-" + plan), Math.round(total / m));
     $("s-" + plan).innerHTML =
       m === 1 ? "Facturación mensual"
               : "Un pago de <b>" + fmt(total) + "</b> cada " + (m === 6 ? "6 meses" : "año");
@@ -941,8 +1487,189 @@ function glide(cont) {
 window.addEventListener("resize", () => { glide($("toggle")); glide($("tabs")); });
 window.addEventListener("load", () => setTimeout(() => { glide($("toggle")); glide($("tabs")); }, 60));
 
+/* ══ Tema claro / oscuro (igual que en la app: sol/luna + gestiq_tema) ══ */
+const ICO_SOL  = '<svg class="bi" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4m11.4-11.4 1.4-1.4"/></svg>';
+const ICO_LUNA = '<svg class="bi" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+function pintarTema(claro) {
+  document.body.classList.toggle("claro", claro);
+  $("btnTema").innerHTML = claro ? ICO_SOL : ICO_LUNA;
+  const mt = $("metaTema"); if (mt) mt.content = claro ? "#F2F3F6" : "#101018";
+  try { localStorage.setItem("gestiq_tema", claro ? "claro" : "oscuro"); } catch (e) {}
+}
+function tema(ev) {
+  const claro = !document.body.classList.contains("claro");
+  if (document.startViewTransition && ev && ev.clientX !== undefined) {
+    const x = ev.clientX, y = ev.clientY;
+    const r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    const t = document.startViewTransition(() => pintarTema(claro));
+    t.ready.then(() => {
+      document.documentElement.animate(
+        { clipPath: ["circle(0px at " + x + "px " + y + "px)", "circle(" + r + "px at " + x + "px " + y + "px)"] },
+        { duration: 620, easing: "ease-in-out", pseudoElement: "::view-transition-new(root)" });
+    }).catch(() => {});
+  } else pintarTema(claro);
+}
+
+/* ══ Partículas flotantes ══ */
+(function () {
+  const c = $("pts"); if (!c) return;
+  for (let i = 0; i < 16; i++) {
+    const s = document.createElement("span");
+    const dur = 14 + Math.random() * 18, del = -(Math.random() * 30);
+    const x = Math.random() * 100, z = 2 + Math.random() * 3.5;
+    s.style.cssText = "left:" + x.toFixed(1) + "vw;width:" + z.toFixed(1) + "px;height:" + z.toFixed(1) +
+      "px;animation-duration:" + dur.toFixed(1) + "s;animation-delay:" + del.toFixed(1) +
+      "s;opacity:" + (.22 + Math.random() * .4).toFixed(2);
+    c.appendChild(s);
+  }
+})();
+
+/* ══ Demo en vivo: la ventana de la app corriendo en loop ══ */
+function cuenta(el, fin) {
+  const ini = parseInt(el.textContent, 10) || 0;
+  if (fin === ini) { el.textContent = fin; return; }
+  const t0 = performance.now(), dur = 620;
+  (function f(t) {
+    const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = Math.round(ini + (fin - ini) * e);
+    if (k < 1) requestAnimationFrame(f);
+  })(performance.now());
+}
+(function () {
+  const log = $("vlog"), fill = $("vpfill"), stat = $("vstat");
+  const est1 = $("vest1"), archN = $("varchN"), archS = $("varchS");
+  const hojas = $("vhojas"), play = $("vplay");
+  if (!log || !fill || !stat) return;
+  const TOTAL = 27;
+  const GUION = [
+    ["lgris", "→ Caso 45227932"],
+    ["lok",   "45227932: Revisado, gestionado y autorizado para pre factura."],
+    ["lgris", "→ Caso 45301877"],
+    ["ldev",  "45301877: Se devuelve: el valor no coincide con lo autorizado."],
+    ["lgris", "→ Caso 45278104"],
+    ["lok",   "45278104: Revisado, gestionado y autorizado para pre factura."],
+    ["lnota", "45278104: nota adicional → Actividad ejecutada fuera de la vigencia."],
+    ["lgris", "→ Caso 45312440"],
+    ["lok",   "45312440: Revisado, gestionado y autorizado para pre factura."],
+    ["lgris", "→ Caso 45298761"],
+    ["lok",   "45298761: Revisado, gestionado y autorizado para pre factura."],
+    ["lfin",  "✓ Excel guardado — 27 casos gestionados"],
+  ];
+  let i = 0, res = 0;
+  function reset() {
+    i = 0; res = 0;
+    log.textContent = ""; fill.style.width = "0%";
+    est1.textContent = "Pendiente"; est1.className = "vest";
+    archN.textContent = "Ningún archivo seleccionado";
+    archS.textContent = "Elige el Excel que contiene los casos";
+    hojas.textContent = "Selecciona primero el archivo"; hojas.className = "vin";
+    stat.textContent = "Listo para comenzar"; stat.className = "vstat";
+    play.classList.remove("on");
+  }
+  function elegir() {
+    archN.textContent = "Programación julio.xlsx";
+    archS.textContent = "3 hojas · 27 casos";
+    est1.textContent = "Listo ✓"; est1.className = "vest ok";
+    hojas.textContent = "SIPAB 10 NOV · JULIO 2026"; hojas.className = "vin lleno";
+    setTimeout(iniciar, 1100);
+  }
+  function iniciar() {
+    play.classList.add("on");
+    stat.className = "vstat";
+    stat.innerHTML = 'Procesando… <b id="vpn">0</b> de ' + TOTAL + ' casos';
+    setTimeout(paso, 650);
+  }
+  function paso() {
+    if (i >= GUION.length) {
+      stat.className = "vstat fin";
+      stat.textContent = "✓ Completado — " + TOTAL + " casos gestionados";
+      play.classList.remove("on");
+      setTimeout(arranca, 3400);
+      return;
+    }
+    const par = GUION[i++], d = document.createElement("div");
+    d.className = par[0]; d.textContent = par[1];
+    log.appendChild(d);
+    while (log.children.length > 7) log.removeChild(log.firstChild);
+    if (par[0] === "lok" || par[0] === "ldev" || par[0] === "lfin") {
+      res += 1;
+      const casos = par[0] === "lfin" ? TOTAL : Math.round(res * TOTAL / 6);
+      const n = $("vpn");
+      if (n) cuenta(n, casos);                  /* mismo easing que los precios */
+      fill.style.width = (casos / TOTAL * 100) + "%";
+    }
+    setTimeout(paso, par[0] === "lgris" ? 500 : 950);
+  }
+  function arranca() { reset(); setTimeout(elegir, 1500); }
+  arranca();
+  const v = $("vent");
+  if (v) {
+    v.addEventListener("mousemove", e => {
+      const r = v.getBoundingClientRect();
+      const px = (e.clientX - r.left) / r.width - .5, py = (e.clientY - r.top) / r.height - .5;
+      v.style.transform = "perspective(1100px) rotateX(" + (-py * 3).toFixed(2) + "deg) rotateY(" + (px * 4).toFixed(2) + "deg)";
+    });
+    v.addEventListener("mouseleave", () => { v.style.transform = ""; });
+  }
+})();
+
+/* ══ Spotlight que sigue el mouse + tilt 3D en los planes ══ */
+document.querySelectorAll(".row > .card, .cuenta-zona .card").forEach(c => {
+  c.addEventListener("mousemove", e => {
+    const r = c.getBoundingClientRect();
+    c.style.setProperty("--mx", (e.clientX - r.left) + "px");
+    c.style.setProperty("--my", (e.clientY - r.top) + "px");
+  });
+});
+document.querySelectorAll(".row > .card").forEach(c => {
+  c.addEventListener("mousemove", e => {
+    const r = c.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width - .5, py = (e.clientY - r.top) / r.height - .5;
+    c.style.transform = "perspective(950px) translateY(-5px) rotateX(" + (-py * 5).toFixed(2) + "deg) rotateY(" + (px * 6).toFixed(2) + "deg)";
+  });
+  c.addEventListener("mouseleave", () => { c.style.transform = ""; });
+});
+
+/* ══ Revelado al hacer scroll ══ */
+(function () {
+  const els = document.querySelectorAll(".rvl");
+  if (!("IntersectionObserver" in window)) { els.forEach(e => e.classList.add("vis")); return; }
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(en => { if (en.isIntersecting) { en.target.classList.add("vis"); io.unobserve(en.target); } });
+  }, { threshold: .12 });
+  els.forEach(e => io.observe(e));
+})();
+
+let claroIni = false;
+try { claroIni = localStorage.getItem("gestiq_tema") === "claro"; } catch (e) {}
+pintarTema(claroIni);
+
 periodo(12, $("btnAnual"));   // Anual visible al entrar
 procesarHash().then(esReset => { if (!esReset) pintar(); });
+/* ══ Header que se esconde al bajar + barra de progreso de lectura ══ */
+(function () {
+  const h = document.querySelector("header"), barra = document.getElementById("leido");
+  const zona = document.querySelector(".row"), subir = document.getElementById("subir");
+  let yAnt = 0, tick = false;
+  function onScroll() {
+    const y = window.scrollY || 0;
+    if (barra) {
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      barra.style.width = (total > 0 ? Math.min(100, y / total * 100) : 0) + "%";
+    }
+    if (h) {
+      h.classList.toggle("compacto", y > 60);
+      if (y > 140 && y > yAnt + 4) h.classList.add("oculto");
+      else if (y < yAnt - 4 || y < 80) h.classList.remove("oculto");
+    }
+    if (subir && zona) subir.classList.toggle("vis", zona.getBoundingClientRect().bottom < 0);
+    yAnt = y; tick = false;
+  }
+  window.addEventListener("scroll", () => {
+    if (!tick) { tick = true; requestAnimationFrame(onScroll); }
+  }, { passive: true });
+  onScroll();
+})();
 </script>
 </body>
 </html>

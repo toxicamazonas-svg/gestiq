@@ -848,7 +848,7 @@ class GuardianBot(BaseBot):
                 except Exception:
                     pass
                 ev = threading.Event()
-                self.after(0, lambda: self._ask_ready(ev, "Guardián (solo inicia sesión — el bot consulta por API)"))
+                self.after(0, lambda: self._ask_ready(ev, "Guardian (solo inicia sesión — el bot consulta por API)"))
                 await asyncio.get_running_loop().run_in_executor(None, ev.wait)
                 if self._stop:
                     return False

@@ -169,6 +169,26 @@ def _leer(clave):
             pass
     return _fb_load().get(clave)
 
+def _leer_todos(clave):
+    """TODOS los valores guardados para la clave, sin repetir, en orden
+    (llavero primero, luego archivo). Pueden divergir cuando un almacén no
+    se dejó actualizar: p.ej. la .app instalada y el python de Terminal son
+    identidades DISTINTAS ante el Llavero de macOS — una puede leer el item
+    de la otra pero no siempre reescribirlo (set_password falla en silencio
+    por la ACL), y el llavero queda congelado con un token ya rotado."""
+    vals = []
+    kr = _kr()
+    if kr:
+        try:
+            v = kr.get_password(_SERVICIO, clave)
+            if v: vals.append(v)
+        except Exception:
+            pass
+    v = _fb_load().get(clave)
+    if v and v not in vals:
+        vals.append(v)
+    return vals
+
 def _borrar(clave):
     kr = _kr()
     if kr:
@@ -346,19 +366,26 @@ def login_google(timeout=180):
 
 
 def restaurar_sesion():
-    """Reanuda la sesión guardada sin pedir contraseña. None si no hay."""
-    rt = _leer("refresh")
-    if not rt:
+    """Reanuda la sesión guardada sin pedir contraseña. None si no hay.
+    Prueba TODOS los refresh guardados (llavero Y archivo, que pueden
+    divergir — ver _leer_todos): si el primero está revocado pero el otro
+    sirve, entra igual y _sesion_desde re-sincroniza ambos almacenes.
+    Antes solo se probaba el del llavero: si quedaba podrido, la app pedía
+    iniciar sesión en CADA arranque aunque el archivo tuviera el bueno."""
+    candidatos = _leer_todos("refresh")
+    if not candidatos:
         return None
-    st, j = _post("/auth/v1/token?grant_type=refresh_token", {"refresh_token": rt})
-    if st == 200:
-        return _sesion_desde(j)
-    if st in (400, 401, 403):
-        _borrar("refresh")      # token revocado/expirado de verdad → pedirá login
-        return None
-    # 5xx/429: falló el SERVIDOR, no el token — no desloguear al usuario por un
-    # blip de Supabase (antes esto borraba el refresh y pedía contraseña).
-    raise LicenciaError(f"El servidor de licencias respondió {st}.")
+    for rt in candidatos:
+        st, j = _post("/auth/v1/token?grant_type=refresh_token", {"refresh_token": rt})
+        if st == 200:
+            return _sesion_desde(j)   # re-guarda el refresh nuevo en ambos
+        if st in (400, 401, 403):
+            continue                  # este está revocado: prueba el siguiente
+        # 5xx/429: falló el SERVIDOR, no el token — no desloguear al usuario por
+        # un blip de Supabase (antes esto borraba el refresh y pedía contraseña).
+        raise LicenciaError(f"El servidor de licencias respondió {st}.")
+    _borrar("refresh")        # todos revocados/expirados de verdad → pedirá login
+    return None
 
 
 def cerrar_sesion():
